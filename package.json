@@ -1,0 +1,12 @@
+{
+  "name": "ailib",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @ailib/web",
+    "build:web": "npm run build --workspace @ailib/web",
+    "lint:web": "npm run lint --workspace @ailib/web"
+  }
+}
