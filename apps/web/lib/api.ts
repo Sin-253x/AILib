@@ -5,6 +5,7 @@
  *
  * 2. 关键部分拆解：
  *    - ApiDocument：描述文档列表项的数据结构。
+ *    - ApiUser/AuthResponse：描述认证用户和 token 响应。
  *    - Health：描述后端健康检查响应。
  *    - API_BASE_URL：读取后端服务地址。
  *
@@ -25,6 +26,10 @@ export type ApiDocument = {
   content: string;
   embedding_dimensions: number | null;
   created_at: string;
+  owner_id: number | null;
+  source_filename: string | null;
+  source_mime_type: string | null;
+  source_size_bytes: number | null;
 };
 
 export type Health = {
@@ -32,7 +37,45 @@ export type Health = {
   database: string;
 };
 
+export type ApiUser = {
+  id: number;
+  email: string;
+  created_at: string;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  token_type: "bearer";
+  user: ApiUser;
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    生成带 Bearer token 的请求头。
+ *
+ * 2. 关键部分拆解：
+ *    - Content-Type：声明 JSON 请求体。
+ *    - Authorization：携带后端认证需要的访问令牌。
+ *
+ * 3. 重要概念与库：
+ *    - Bearer token：HTTP API 常见的令牌认证方式。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前 token 存在浏览器本地；生产环境可考虑 httpOnly cookie。
+ *
+ * 5. 修改指南：
+ *    - 如果后端认证头格式变化，建议从这里统一修改。
+ * ========================================================
+ */
+function authHeaders(token: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 /**
  * ======================== 代码解释 ========================
@@ -83,12 +126,181 @@ export async function getHealth(): Promise<Health | null> {
  *    - 如果要支持搜索或分页，建议给函数增加参数并同步后端查询接口。
  * ========================================================
  */
-export async function getDocuments(): Promise<ApiDocument[]> {
+export async function getDocuments(token: string): Promise<ApiDocument[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/documents`, { cache: "no-store" });
+    const response = await fetch(`${API_BASE_URL}/documents`, {
+      cache: "no-store",
+      headers: authHeaders(token),
+    });
     if (!response.ok) return [];
     return response.json();
   } catch {
     return [];
   }
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    注册新用户并返回访问令牌。
+ *
+ * 2. 关键部分拆解：
+ *    - email/password：提交注册凭证。
+ *    - /auth/register：调用后端注册接口。
+ *
+ * 3. 重要概念与库：
+ *    - AuthResponse：包含 token 和用户信息，前端可立即进入登录态。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前直接抛出通用错误；后续可解析后端 detail 展示更精确提示。
+ *
+ * 5. 修改指南：
+ *    - 如果注册字段增加，建议扩展本函数参数和请求 body。
+ * ========================================================
+ */
+export async function registerUser(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    throw new Error("Registration failed");
+  }
+  return response.json();
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    使用邮箱和密码登录并返回访问令牌。
+ *
+ * 2. 关键部分拆解：
+ *    - /auth/login：调用后端登录接口。
+ *    - AuthResponse：保存 token 和当前用户。
+ *
+ * 3. 重要概念与库：
+ *    - JWT：后端签发、前端保存并用于访问受保护接口的令牌。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前没有刷新 token；过期后需要重新登录。
+ *
+ * 5. 修改指南：
+ *    - 如果后端改为 cookie 认证，建议从本函数和 authHeaders 一起调整。
+ * ========================================================
+ */
+export async function loginUser(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    throw new Error("Login failed");
+  }
+  return response.json();
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    使用 token 获取当前登录用户。
+ *
+ * 2. 关键部分拆解：
+ *    - /auth/me：后端当前用户接口。
+ *    - null：token 无效或服务不可用时返回空登录态。
+ *
+ * 3. 重要概念与库：
+ *    - 会话恢复：页面刷新后用 localStorage 里的 token 找回用户。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前失败时静默返回 null；可增加明确的重新登录提示。
+ *
+ * 5. 修改指南：
+ *    - 如果用户响应字段变化，建议同步 ApiUser 类型。
+ * ========================================================
+ */
+export async function getCurrentUser(token: string): Promise<ApiUser | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      cache: "no-store",
+      headers: authHeaders(token),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    为当前登录用户创建 starter 文档。
+ *
+ * 2. 关键部分拆解：
+ *    - token：证明当前用户身份。
+ *    - title/content：提交文档基础内容。
+ *
+ * 3. 重要概念与库：
+ *    - 受保护 API：请求必须带 Authorization 头。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前只支持纯文本；上传阶段会改为文件解析流程。
+ *
+ * 5. 修改指南：
+ *    - 如果要增加 embedding 或元数据，建议扩展 body 并同步后端 schema。
+ * ========================================================
+ */
+export async function createDocument(
+  token: string,
+  payload: { title: string; content: string },
+): Promise<ApiDocument> {
+  const response = await fetch(`${API_BASE_URL}/documents`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to save document");
+  }
+  return response.json();
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    上传文件并让后端解析保存为当前用户的知识库文档。
+ *
+ * 2. 关键部分拆解：
+ *    - FormData：承载浏览器选择的文件。
+ *    - Authorization：携带当前用户 Bearer token。
+ *    - /documents/upload：调用后端上传解析接口。
+ *
+ * 3. 重要概念与库：
+ *    - multipart/form-data：上传文件时由浏览器自动生成的请求格式。
+ *    - 受保护上传：后端根据 token 把文件归属到当前用户。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前不显示上传进度；大文件上传阶段可加入进度条。
+ *
+ * 5. 修改指南：
+ *    - 如果后端上传字段名变化，建议同步修改 formData.append 的 key。
+ * ========================================================
+ */
+export async function uploadDocument(token: string, file: File): Promise<ApiDocument> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload document");
+  }
+  return response.json();
 }

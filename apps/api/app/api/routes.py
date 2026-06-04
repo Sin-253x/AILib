@@ -1,16 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.db.session import get_session
+from app.api.deps import CurrentUserDep, SessionDep
+from app.core.config import get_settings
 from app.models.document import Document
 from app.schemas import DocumentCreate, DocumentRead, HealthResponse
+from app.services.document_parser import DocumentParseError, parse_uploaded_document
 
 router = APIRouter()
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 # ======================== 代码解释 ========================
@@ -46,40 +46,48 @@ async def health(session: SessionDep) -> HealthResponse:
 
 # ======================== 代码解释 ========================
 # 1. 整体功能：
-#    返回当前数据库中保存的 starter 文档列表。
+#    返回当前登录用户保存的 starter 文档列表。
 #
 # 2. 关键部分拆解：
-#    - select(Document)：查询文档表。
+#    - CurrentUserDep：解析当前登录用户。
+#    - select(Document)：按 owner_id 查询文档表。
 #    - order_by：按创建时间倒序展示最新文档。
 #    - to_document_read：统一转换 ORM 模型为响应结构。
 #
 # 3. 重要概念与库：
 #    - ORM 查询：用 Python 类表达数据库查询。
+#    - Bearer token：用登录令牌隔离不同用户的数据。
 #    - response_model：确保返回值符合前端期望。
 #
 # 4. 潜在问题与改进建议：
-#    - 当前没有分页和用户隔离；认证阶段后需要按用户过滤。
+#    - 当前没有分页；文档数量增加后需要加入 limit 和 offset。
 #
 # 5. 修改指南：
 #    - 如果要增加分页，建议先扩展查询参数，再修改 select 的 limit 和 offset。
 # ========================================================
 @router.get("/documents", response_model=list[DocumentRead])
-async def list_documents(session: SessionDep) -> list[DocumentRead]:
-    result = await session.execute(select(Document).order_by(Document.created_at.desc()))
+async def list_documents(session: SessionDep, current_user: CurrentUserDep) -> list[DocumentRead]:
+    result = await session.execute(
+        select(Document)
+        .where(Document.owner_id == current_user.id)
+        .order_by(Document.created_at.desc())
+    )
     return [to_document_read(document) for document in result.scalars()]
 
 
 # ======================== 代码解释 ========================
 # 1. 整体功能：
-#    创建一条 starter 文档记录并保存可选向量。
+#    为当前登录用户创建一条 starter 文档记录并保存可选向量。
 #
 # 2. 关键部分拆解：
 #    - DocumentCreate：校验标题、正文和向量维度。
+#    - CurrentUserDep：确定文档所属用户。
 #    - session.add/commit/refresh：完成数据库写入并拿到最新字段。
 #    - to_document_read：返回前端需要的文档摘要。
 #
 # 3. 重要概念与库：
 #    - SQLAlchemy AsyncSession：用 async/await 提交数据库写操作。
+#    - 用户数据隔离：通过 owner_id 防止不同用户互相看到文档。
 #    - pgvector：embedding 字段后续用于语义搜索。
 #
 # 4. 潜在问题与改进建议：
@@ -92,11 +100,65 @@ async def list_documents(session: SessionDep) -> list[DocumentRead]:
 async def create_document(
     payload: DocumentCreate,
     session: SessionDep,
+    current_user: CurrentUserDep,
 ) -> DocumentRead:
     document = Document(
         title=payload.title,
         content=payload.content,
         embedding=payload.embedding,
+        owner_id=current_user.id,
+    )
+    session.add(document)
+    await session.commit()
+    await session.refresh(document)
+    return to_document_read(document)
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    接收当前登录用户上传的文本类文件，解析后保存为知识库文档。
+#
+# 2. 关键部分拆解：
+#    - UploadFile：接收 multipart/form-data 文件。
+#    - parse_uploaded_document：校验扩展名、大小、编码和空内容。
+#    - Document：保存解析后的标题、正文和上传来源元数据。
+#
+# 3. 重要概念与库：
+#    - multipart/form-data：浏览器上传文件使用的请求格式。
+#    - 用户数据隔离：上传文档通过 owner_id 绑定当前用户。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前支持 TXT / Markdown；PDF 解析需要后续接入专门库。
+#    - 当前把全文保存到 documents 表；向量化阶段需要继续拆分 chunk。
+#
+# 5. 修改指南：
+#    - 如果要支持更多文件类型，建议先扩展 document_parser 并补测试。
+# ========================================================
+@router.post("/documents/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+async def upload_document(
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    file: Annotated[UploadFile, File()],
+) -> DocumentRead:
+    settings = get_settings()
+    content_bytes = await file.read()
+    try:
+        parsed = parse_uploaded_document(
+            filename=file.filename or "uploaded.txt",
+            content_type=file.content_type,
+            content_bytes=content_bytes,
+            max_size_bytes=settings.max_upload_size_bytes,
+        )
+    except DocumentParseError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    document = Document(
+        title=parsed.title,
+        content=parsed.content,
+        owner_id=current_user.id,
+        source_filename=parsed.source_filename,
+        source_mime_type=parsed.source_mime_type,
+        source_size_bytes=parsed.source_size_bytes,
     )
     session.add(document)
     await session.commit()
@@ -110,6 +172,7 @@ async def create_document(
 #
 # 2. 关键部分拆解：
 #    - embedding_dimensions：只返回向量维度，不暴露完整向量。
+#    - source_*：返回上传来源元数据，方便前端展示文件来源。
 #    - DocumentRead：统一响应字段结构。
 #
 # 3. 重要概念与库：
@@ -128,4 +191,8 @@ def to_document_read(document: Document) -> DocumentRead:
         content=document.content,
         embedding_dimensions=len(document.embedding) if document.embedding is not None else None,
         created_at=document.created_at,
+        owner_id=document.owner_id,
+        source_filename=document.source_filename,
+        source_mime_type=document.source_mime_type,
+        source_size_bytes=document.source_size_bytes,
     )

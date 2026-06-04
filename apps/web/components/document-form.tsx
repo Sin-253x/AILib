@@ -1,10 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+import { createDocument } from "@/lib/api";
 
 /**
  * ======================== 代码解释 ========================
@@ -14,22 +13,21 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
  * 2. 关键部分拆解：
  *    - title/content：保存用户输入。
  *    - status：控制保存中、成功和失败提示。
- *    - handleSubmit：提交 JSON 请求并刷新页面数据。
+ *    - handleSubmit：带 token 提交 JSON 请求并通知父组件刷新列表。
  *
  * 3. 重要概念与库：
- *    - Client Component：需要使用 useState 和 useRouter，所以声明为客户端组件。
- *    - router.refresh：让 Next.js 重新获取服务端页面数据。
+ *    - Client Component：需要使用 useState，所以声明为客户端组件。
+ *    - Bearer token：把当前用户身份传给后端。
  *
  * 4. 潜在问题与改进建议：
  *    - 当前只是文本创建；上传阶段应改为文件选择和上传进度。
- *    - 当前没有认证 token；认证阶段需要在请求中携带用户凭证。
+ *    - 当前只是文本创建；上传阶段应改为文件选择和上传进度。
  *
  * 5. 修改指南：
- *    - 如果要扩展表单字段，建议先增加 state，再同步请求 body 和后端 schema。
+ *    - 如果要扩展表单字段，建议先增加 state，再同步 createDocument 和后端 schema。
  * ========================================================
  */
-export function DocumentForm() {
-  const router = useRouter();
+export function DocumentForm({ token, onSaved }: { token: string; onSaved: () => void }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -41,12 +39,13 @@ export function DocumentForm() {
    *
    * 2. 关键部分拆解：
    *    - preventDefault：阻止浏览器默认刷新。
-   *    - fetch POST：向后端发送标题和正文。
+   *    - createDocument：向受保护后端接口发送标题和正文。
    *    - setStatus：反馈提交状态。
    *
    * 3. 重要概念与库：
    *    - FormEvent：React 表单事件类型。
    *    - JSON API：当前 starter 使用 JSON 创建文档。
+   *    - 回调刷新：保存成功后由父组件重新读取文档列表。
    *
    * 4. 潜在问题与改进建议：
    *    - 当前错误提示不区分原因；后续可解析后端错误详情。
@@ -60,22 +59,11 @@ export function DocumentForm() {
     setStatus("saving");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/documents`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ title, content }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save document");
-      }
-
+      await createDocument(token, { title, content });
       setTitle("");
       setContent("");
       setStatus("saved");
-      router.refresh();
+      onSaved();
     } catch {
       setStatus("error");
     }

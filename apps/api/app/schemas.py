@@ -39,3 +39,49 @@ class DocumentRead(BaseModel):
     content: str
     embedding_dimensions: int | None
     created_at: datetime
+    owner_id: int | None
+    source_filename: str | None
+    source_mime_type: str | None
+    source_size_bytes: int | None
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    定义用户认证接口使用的请求和响应结构。
+#
+# 2. 关键部分拆解：
+#    - RegisterRequest：注册时提交邮箱和密码。
+#    - LoginRequest：登录时提交邮箱和密码。
+#    - UserRead：返回给前端的安全用户信息。
+#    - AuthResponse：登录或注册成功后的 token 响应。
+#
+# 3. 重要概念与库：
+#    - Pydantic Field：限制邮箱和密码长度，避免明显无效输入。
+#    - Bearer token：前端访问受保护接口时使用的认证凭证。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前邮箱只用简单格式校验；生产环境可使用 EmailStr 和邮件验证流程。
+#
+# 5. 修改指南：
+#    - 如果要扩展认证字段，建议先修改这些 schema，再同步 auth 路由和前端类型。
+# ========================================================
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=8, max_length=128)
+
+
+class UserRead(BaseModel):
+    id: int
+    email: str
+    created_at: datetime
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserRead

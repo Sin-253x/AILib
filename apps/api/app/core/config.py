@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #    集中读取后端运行所需的环境变量配置。
 #
 # 2. 关键部分拆解：
-#    - Settings：声明数据库地址和 CORS 来源。
+#    - Settings：声明数据库地址、CORS 来源、认证令牌配置和上传限制。
 #    - cors_origins：把逗号分隔的来源字符串转换为列表。
 #    - get_settings：缓存配置对象，避免重复解析环境变量。
 #
@@ -18,6 +18,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #    - lru_cache：缓存配置实例，减少重复初始化。
 #
 # 4. 潜在问题与改进建议：
+#    - 当前 secret_key 有开发默认值；部署时必须通过环境变量覆盖。
 #    - 当前没有读取 OpenAI key；RAG 阶段需要增加 AI 相关配置。
 #
 # 5. 修改指南：
@@ -31,6 +32,9 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     allowed_origins: str = Field(default="http://localhost:3000", alias="ALLOWED_ORIGINS")
+    secret_key: str = Field(default="dev-secret-change-me", alias="SECRET_KEY")
+    access_token_expire_minutes: int = Field(default=60 * 24, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    max_upload_size_bytes: int = Field(default=1_048_576, alias="MAX_UPLOAD_SIZE_BYTES")
 
     @property
     def cors_origins(self) -> list[str]:
