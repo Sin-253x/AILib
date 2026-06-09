@@ -9,6 +9,9 @@ from app.core.config import get_settings
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.schemas import (
+    ChatRequest,
+    ChatResponse,
+    ChatSource,
     DocumentCreate,
     DocumentRead,
     HealthResponse,
@@ -16,6 +19,7 @@ from app.schemas import (
     SearchResult,
 )
 from app.services.document_parser import DocumentParseError, parse_uploaded_document
+from app.services.rag import RagGenerationError, RagSource, generate_rag_answer
 from app.services.semantic_index import create_embedding, split_text_into_chunks
 
 router = APIRouter()
@@ -83,6 +87,66 @@ def add_document_chunks(document: Document, owner_id: int) -> None:
 # 5. 修改指南：
 #    - 如果要扩展健康检查，建议在本函数中追加独立检查项并更新 HealthResponse。
 # ========================================================
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    按当前用户、自然语言问题和 limit 召回最相关的文档 chunk。
+#
+# 2. 关键部分拆解：
+#    - create_embedding：把查询文本转换成向量。
+#    - cosine_distance：让 pgvector 按向量距离从近到远排序。
+#    - SearchResult：统一返回搜索和 RAG 共用的来源字段。
+#
+# 3. 重要概念与库：
+#    - RAG 检索阶段：先找相关上下文，再交给回答生成阶段。
+#    - owner_id 过滤：确保用户只能召回自己的知识库内容。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前每次请求实时生成 query embedding；高频使用时可增加缓存。
+#    - 数据量增长后应为 embedding 列创建 HNSW 或 IVFFLAT 索引。
+#
+# 5. 修改指南：
+#    - 如果要增加分数阈值，建议在 result.all() 后过滤低 score chunk。
+# ========================================================
+async def find_relevant_chunks(
+    query: str,
+    *,
+    limit: int,
+    session: SessionDep,
+    owner_id: int,
+) -> list[SearchResult]:
+    settings = get_settings()
+    query_embedding = create_embedding(
+        query,
+        provider=settings.embedding_provider,
+        dimensions=settings.embedding_dimensions,
+        openai_api_key=settings.openai_api_key,
+        openai_model=settings.embedding_model,
+    )
+    distance = DocumentChunk.embedding.cosine_distance(query_embedding)
+    result = await session.execute(
+        select(DocumentChunk, Document, distance.label("distance"))
+        .join(Document, Document.id == DocumentChunk.document_id)
+        .where(DocumentChunk.owner_id == owner_id)
+        .order_by(distance)
+        .limit(limit)
+    )
+
+    search_results: list[SearchResult] = []
+    for chunk, document, chunk_distance in result.all():
+        search_results.append(
+            SearchResult(
+                document_id=document.id,
+                document_title=document.title,
+                chunk_id=chunk.id,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                score=max(0.0, 1.0 - float(chunk_distance)),
+                source_filename=document.source_filename,
+            )
+        )
+    return search_results
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health(session: SessionDep) -> HealthResponse:
     try:
@@ -246,37 +310,91 @@ async def search_documents(
     session: SessionDep,
     current_user: CurrentUserDep,
 ) -> list[SearchResult]:
-    settings = get_settings()
-    query_embedding = create_embedding(
+    return await find_relevant_chunks(
         payload.query,
-        provider=settings.embedding_provider,
-        dimensions=settings.embedding_dimensions,
-        openai_api_key=settings.openai_api_key,
-        openai_model=settings.embedding_model,
-    )
-    distance = DocumentChunk.embedding.cosine_distance(query_embedding)
-    result = await session.execute(
-        select(DocumentChunk, Document, distance.label("distance"))
-        .join(Document, Document.id == DocumentChunk.document_id)
-        .where(DocumentChunk.owner_id == current_user.id)
-        .order_by(distance)
-        .limit(payload.limit)
+        limit=payload.limit,
+        session=session,
+        owner_id=current_user.id,
     )
 
-    search_results: list[SearchResult] = []
-    for chunk, document, chunk_distance in result.all():
-        search_results.append(
-            SearchResult(
-                document_id=document.id,
-                document_title=document.title,
-                chunk_id=chunk.id,
-                chunk_index=chunk.chunk_index,
-                content=chunk.content,
-                score=max(0.0, 1.0 - float(chunk_distance)),
-                source_filename=document.source_filename,
-            )
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    基于当前用户的知识库召回相关片段，并生成带引用来源的 RAG 回答。
+#
+# 2. 关键部分拆解：
+#    - find_relevant_chunks：复用语义搜索召回上下文。
+#    - RagSource：把 SearchResult 转换为 RAG 服务可用的引用对象。
+#    - generate_rag_answer：根据 CHAT_PROVIDER 生成 mock、DeepSeek 或 OpenAI 回答。
+#    - ChatResponse：把回答和来源一起返回给前端。
+#
+# 3. 重要概念与库：
+#    - RAG：回答必须建立在召回片段上，降低无依据生成。
+#    - LangChain：当 CHAT_PROVIDER=deepseek/openai 时负责组织 prompt、模型和输出解析。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前不保存聊天历史；后续可增加 conversation/message 表支持多轮上下文。
+#    - 当前非流式返回；真实产品可改为 SSE 或 WebSocket。
+#
+# 5. 修改指南：
+#    - 如果要改变回答风格，优先修改 app.services.rag 中的 prompt。
+#    - 如果要扩大召回数量，调整 ChatRequest.limit 的上限和前端请求参数。
+# ========================================================
+@router.post("/chat", response_model=ChatResponse)
+async def chat_with_documents(
+    payload: ChatRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> ChatResponse:
+    search_results = await find_relevant_chunks(
+        payload.question,
+        limit=payload.limit,
+        session=session,
+        owner_id=current_user.id,
+    )
+    rag_sources = [
+        RagSource(
+            document_id=result.document_id,
+            document_title=result.document_title,
+            chunk_id=result.chunk_id,
+            chunk_index=result.chunk_index,
+            content=result.content,
+            score=result.score,
+            source_filename=result.source_filename,
         )
-    return search_results
+        for result in search_results
+    ]
+    settings = get_settings()
+    try:
+        answer = generate_rag_answer(
+            payload.question,
+            rag_sources,
+            provider=settings.chat_provider,
+            openai_api_key=settings.openai_api_key,
+            deepseek_api_key=settings.deepseek_api_key,
+            chat_model=settings.chat_model,
+        )
+    except RagGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    return ChatResponse(
+        answer=answer,
+        sources=[
+            ChatSource(
+                document_id=source.document_id,
+                document_title=source.document_title,
+                chunk_id=source.chunk_id,
+                chunk_index=source.chunk_index,
+                content=source.content,
+                score=source.score,
+                source_filename=source.source_filename,
+            )
+            for source in rag_sources
+        ],
+    )
 
 
 # ======================== 代码解释 ========================

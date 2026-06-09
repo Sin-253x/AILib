@@ -39,8 +39,11 @@ class Settings(BaseSettings):
     embedding_dimensions: int = Field(default=1536, alias="EMBEDDING_DIMENSIONS")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    deepseek_api_key: str | None = Field(default=None, alias="DEEPSEEK_API_KEY")
     chunk_size: int = Field(default=900, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=150, alias="CHUNK_OVERLAP")
+    chat_provider: str = Field(default="deepseek", alias="CHAT_PROVIDER")
+    chat_model: str = Field(default="deepseek-v4-pro", alias="CHAT_MODEL")
 
     @property
     def cors_origins(self) -> list[str]:

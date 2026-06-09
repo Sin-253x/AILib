@@ -60,6 +60,13 @@ export type SearchResult = {
   source_filename: string | null;
 };
 
+export type ChatSource = SearchResult;
+
+export type ChatResponse = {
+  answer: string;
+  sources: ChatSource[];
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 /**
@@ -349,6 +356,43 @@ export async function searchDocuments(
   });
   if (!response.ok) {
     throw new Error("Search failed");
+  }
+  return response.json();
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    调用后端 RAG 对话接口，返回基于当前用户知识库生成的回答和引用来源。
+ *
+ * 2. 关键部分拆解：
+ *    - question：用户输入的自然语言问题。
+ *    - limit：控制后端召回多少个文档片段作为上下文。
+ *    - /chat：后端 RAG 入口，内部会先语义检索再生成回答。
+ *
+ * 3. 重要概念与库：
+ *    - RAG：把搜索结果作为模型回答的上下文，让回答可追溯。
+ *    - Bearer token：确保对话只使用当前登录用户自己的文档。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前是一次性响应；后续可以改成流式接口，让回答逐字显示。
+ *
+ * 5. 修改指南：
+ *    - 如果后端增加会话历史字段，建议先扩展 ChatResponse 类型，再更新聊天面板。
+ * ========================================================
+ */
+export async function chatWithDocuments(
+  token: string,
+  question: string,
+  limit = 5,
+): Promise<ChatResponse> {
+  const response = await fetch(`${API_BASE_URL}/chat`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ question, limit }),
+  });
+  if (!response.ok) {
+    throw new Error("Chat failed");
   }
   return response.json();
 }

@@ -25,6 +25,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ailib}:${POSTGRES_PASSWORD:-ailib}@postgres:5432/${POSTGRES_DB:-ailib}
       API_HOST: 0.0.0.0
       API_PORT: 8000
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-deepseek}
+      CHAT_MODEL: ${CHAT_MODEL:-deepseek-v4-pro}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:

@@ -6,6 +6,9 @@ requires-python = ">=3.11"
 dependencies = [
   "asyncpg>=0.30.0",
   "fastapi[standard]>=0.115.0",
+  "langchain-core>=0.3.35",
+  "langchain-deepseek>=1.1.0",
+  "langchain-openai>=0.3.35",
   "pgvector>=0.3.6",
   "pydantic-settings>=2.7.0",
   "sqlalchemy[asyncio]>=2.0.36",

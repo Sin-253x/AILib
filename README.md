@@ -1,76 +1,122 @@
 # AILib
 
-AILib 是一个用于学习和简历展示的 AI 个人知识库助手项目。目标技术栈是 Next.js 15、TypeScript、FastAPI、PostgreSQL、pgvector、LangChain 和 OpenAI。
+AILib is a full-stack AI personal knowledge base assistant built for learning, portfolio presentation, and practical RAG experimentation.
 
-## 当前阶段
+It uses Next.js 15, TypeScript, FastAPI, PostgreSQL, pgvector, LangChain, DeepSeek, and OpenAI-compatible providers. The core workflow covers authentication, document creation/upload, semantic search, and source-cited RAG chat.
 
-项目按阶段推进。每个阶段完成后必须先总结并等待确认，再进入下一阶段。
+## Status
 
-1. 阶段 1：项目规范化与基础设施。已完成。
-2. 阶段 2：用户认证。已完成。
-3. 阶段 3：文档上传与解析。已完成。
-4. 阶段 4：向量化与语义搜索。已完成。
-5. 阶段 5：RAG 对话。
-6. 阶段 6：前端完整工作台。
-7. 阶段 7：测试、质量与展示文档。
+All planned phases are complete:
 
-## Project Structure
+1. Phase 1: project foundation and infrastructure.
+2. Phase 2: user authentication.
+3. Phase 3: document upload and parsing.
+4. Phase 4: vectorization and semantic search.
+5. Phase 5: RAG chat.
+6. Phase 6: complete frontend workspace.
+7. Phase 7: quality, validation, and showcase documentation.
+
+## Architecture
 
 ```text
 apps/
-  api/     FastAPI backend with SQLAlchemy and pgvector
-  web/     Next.js 15 frontend
+  api/     FastAPI backend, SQLAlchemy Async, pgvector, LangChain providers
+  web/     Next.js 15 frontend workspace
 infra/
-  postgres/init/  Database bootstrap SQL
-prompt/           Original code explanation template
-prompts/          Canonical code explanation template path
+  postgres/init/  PostgreSQL pgvector bootstrap SQL
 docs/
+  PROJECT_SHOWCASE.md
+  DEMO_SCRIPT.md
+  QUALITY_CHECKLIST.md
   superpowers/plans/  Phase implementation plans
+prompts/
+  explain-code.md     Structured Chinese code explanation template
 ```
 
-## Code Explanation Rule
+Runtime flow:
 
-所有新增或修改的 Python、TypeScript、JavaScript、TSX 代码都必须包含结构化中文注释。模板位于：
+```text
+Next.js Workspace
+  Auth panel
+  Document library
+  Upload/create panels
+  Semantic Search
+  RAG Chat
 
-- `prompts/explain-code.md`
-- `prompt/explain-code.md`
+FastAPI
+  /auth/register
+  /auth/login
+  /auth/me
+  /documents
+  /documents/upload
+  /search
+  /chat
 
-注释必须覆盖：
+PostgreSQL + pgvector
+  users
+  documents
+  document_chunks
 
-1. 整体功能。
-2. 关键部分拆解。
-3. 重要概念与库。
-4. 潜在问题与改进建议。
-5. 修改指南。
+LLM Providers
+  mock
+  DeepSeek through langchain-deepseek
+  OpenAI through langchain-openai
+```
 
-## Prerequisites
+## Core Features
 
-- Node.js 20+
-- Python 3.11+
-- Docker Desktop, for PostgreSQL + pgvector
-- OpenAI API key, for later embedding and RAG stages
+- User registration and login.
+- PBKDF2 password hashing and HMAC-signed Bearer tokens.
+- Current-user API and authenticated document APIs.
+- User-isolated document storage.
+- Manual document creation.
+- TXT and Markdown upload.
+- Text chunking with overlap.
+- Local deterministic embeddings for offline demos.
+- Optional OpenAI embeddings.
+- pgvector semantic search.
+- RAG chat with source citations.
+- DeepSeek RAG provider using `ChatDeepSeek`.
+- OpenAI RAG provider using `ChatOpenAI`.
+- Frontend workspace with document filtering, selected document preview, AI workbench, and ingestion panel.
 
 ## Environment
 
-Copy the example file before running services:
+Copy examples before running locally:
 
 ```powershell
 Copy-Item .env.example .env
+Copy-Item apps\api\.env.example apps\api\.env
 ```
 
 Important variables:
 
 - `DATABASE_URL`: FastAPI async SQLAlchemy connection string.
 - `ALLOWED_ORIGINS`: CORS allowlist for the web frontend.
-- `SECRET_KEY`: HMAC key used to sign access tokens. Replace it outside development.
+- `SECRET_KEY`: HMAC key used to sign access tokens.
 - `ACCESS_TOKEN_EXPIRE_MINUTES`: access token lifetime in minutes.
-- `MAX_UPLOAD_SIZE_BYTES`: maximum accepted upload size. Default is 1 MiB.
-- `EMBEDDING_PROVIDER`: `local` for deterministic offline embeddings, or `openai` for OpenAI embeddings.
-- `EMBEDDING_DIMENSIONS`: embedding vector dimensions. Current pgvector schema expects 1536.
-- `EMBEDDING_MODEL`: OpenAI embedding model name when `EMBEDDING_PROVIDER=openai`.
-- `CHUNK_SIZE` and `CHUNK_OVERLAP`: text splitting controls for semantic search.
+- `MAX_UPLOAD_SIZE_BYTES`: maximum accepted upload size.
+- `EMBEDDING_PROVIDER`: `local` or `openai`.
+- `EMBEDDING_DIMENSIONS`: current pgvector schema expects `1536`.
+- `EMBEDDING_MODEL`: OpenAI embedding model when `EMBEDDING_PROVIDER=openai`.
+- `CHUNK_SIZE` and `CHUNK_OVERLAP`: text splitting controls.
+- `CHAT_PROVIDER`: `deepseek`, `openai`, or `mock`.
+- `CHAT_MODEL`: chat model name. DeepSeek example: `deepseek-v4-pro`.
+- `OPENAI_API_KEY`: required for OpenAI embeddings or OpenAI chat.
+- `DEEPSEEK_API_KEY`: required for `CHAT_PROVIDER=deepseek`.
 - `NEXT_PUBLIC_API_BASE_URL`: API URL used by the Next.js app.
-- `OPENAI_API_KEY`: reserved for LangChain and OpenAI stages.
+
+Provider examples:
+
+```env
+CHAT_PROVIDER=deepseek
+CHAT_MODEL=deepseek-v4-pro
+DEEPSEEK_API_KEY=your_key
+```
+
+```env
+CHAT_PROVIDER=mock
+```
 
 ## Run With Docker
 
@@ -87,7 +133,7 @@ Services:
 
 ## Run Locally
 
-Start PostgreSQL with pgvector:
+Start PostgreSQL:
 
 ```powershell
 docker compose up postgres
@@ -110,48 +156,84 @@ npm install
 npm run dev:web
 ```
 
+Open:
+
+```text
+http://localhost:3000
+```
+
 ## Validation
 
+Backend tests:
+
 ```powershell
-apps/api/.venv/Scripts/python.exe -m ruff check apps/api/app
-npm run lint:web
-npm run build:web
+apps/api/.venv/Scripts/python.exe -m pytest apps/api/tests -q
+```
+
+API lint:
+
+```powershell
+apps/api/.venv/Scripts/python.exe -m ruff check apps/api/app apps/api/tests
+```
+
+Frontend lint and build:
+
+```powershell
+npm.cmd run lint:web
+npm.cmd run build:web
+```
+
+Route inspection:
+
+```powershell
+cd apps/api
+.\.venv\Scripts\python.exe -c "from app.main import app; paths=[getattr(route, 'path', '') for route in app.routes]; print('/auth/login' in paths, '/documents/upload' in paths, '/search' in paths, '/chat' in paths, len(paths))"
 ```
 
 ## API Endpoints
 
-Current starter endpoints:
+- `GET /health`: checks API and database availability.
+- `POST /auth/register`: creates a user and returns a Bearer token.
+- `POST /auth/login`: validates credentials and returns a Bearer token.
+- `GET /auth/me`: returns the current user from a Bearer token.
+- `GET /documents`: lists documents owned by the authenticated user.
+- `POST /documents`: stores a document for the authenticated user.
+- `POST /documents/upload`: parses and stores an uploaded TXT or Markdown document.
+- `POST /search`: runs semantic search over the authenticated user's document chunks.
+- `POST /chat`: generates a RAG answer with citations from the authenticated user's document chunks.
 
-- `GET /health` checks API and database availability.
-- `POST /auth/register` creates a user and returns a Bearer token.
-- `POST /auth/login` validates credentials and returns a Bearer token.
-- `GET /auth/me` returns the current user from a Bearer token.
-- `GET /documents` lists documents owned by the authenticated user.
-- `POST /documents` stores a document for the authenticated user.
-- `POST /documents/upload` parses and stores an uploaded TXT or Markdown document.
-- `POST /search` runs semantic search over the authenticated user's document chunks.
-
-Authenticated document requests require:
+Authenticated requests require:
 
 ```text
 Authorization: Bearer <access_token>
 ```
 
-Supported upload types:
+## Documentation
 
-- `.txt`
-- `.md`
-- `.markdown`
+- [Project Showcase](docs/PROJECT_SHOWCASE.md)
+- [Demo Script](docs/DEMO_SCRIPT.md)
+- [Quality Checklist](docs/QUALITY_CHECKLIST.md)
+- [Code Explanation Template](prompts/explain-code.md)
+- [Phase Plans](docs/superpowers/plans)
 
-PDF parsing is intentionally left for a later stage because it needs a dedicated parser dependency.
+## Code Explanation Rule
 
-Semantic search behavior:
+All generated or modified Python, TypeScript, JavaScript, and TSX code must include structured Chinese explanation comments following:
 
-- Documents are split into chunks when they are created or uploaded.
-- Each chunk receives a 1536-dimensional embedding and is stored in PostgreSQL with pgvector.
-- The default `local` embedding provider is deterministic and works offline for learning and demos.
-- Set `EMBEDDING_PROVIDER=openai` and `OPENAI_API_KEY` to use OpenAI embeddings.
+- `prompts/explain-code.md`
 
-Planned endpoints:
+The required sections are:
 
-- Chat: RAG answer generation with citations.
+1. 整体功能
+2. 关键部分拆解
+3. 重要概念与库
+4. 潜在问题与改进建议
+5. 修改指南
+
+## Known Non-Production Limits
+
+- Database initialization uses `Base.metadata.create_all`; production should use Alembic migrations.
+- Frontend auth stores the access token in `localStorage`; production should prefer httpOnly cookies.
+- PDF and DOCX parsing are not included yet.
+- RAG responses are not streamed yet.
+- Vector index tuning such as HNSW or IVFFLAT is left as a future scaling task.

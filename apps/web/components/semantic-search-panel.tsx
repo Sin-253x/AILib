@@ -46,7 +46,7 @@ export function SemanticSearchPanel({ token }: { token: string }) {
    *    - SearchResult：前后端共享的搜索结果结构。
    *
    * 4. 潜在问题与改进建议：
-   *    - 当前错误提示通用；后续可展示 OpenAI key 缺失或数据库异常等细分错误。
+   *    - 当前错误提示通用；后续可展示 embedding provider 配置或数据库异常等细分错误。
    *
    * 5. 修改指南：
    *    - 如果要加入搜索过滤条件，建议扩展表单 state 和 API 请求 body。

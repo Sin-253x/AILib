@@ -99,6 +99,45 @@ class SearchResult(BaseModel):
 # 5. 修改指南：
 #    - 如果要扩展认证字段，建议先修改这些 schema，再同步 auth 路由和前端类型。
 # ========================================================
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    定义 RAG 对话接口使用的请求、回答和引用来源数据结构。
+#
+# 2. 关键部分拆解：
+#    - ChatRequest：接收用户问题和召回片段数量。
+#    - ChatSource：返回被用于回答的文档片段来源。
+#    - ChatResponse：返回最终回答和可追溯引用列表。
+#
+# 3. 重要概念与库：
+#    - Pydantic Field：限制问题长度和召回数量，防止过大的 prompt。
+#    - 引用来源：让用户知道回答依据来自哪个文档 chunk。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前 schema 未保存多轮会话历史；后续可增加 conversation_id 和 message 表。
+#
+# 5. 修改指南：
+#    - 如果要支持多轮对话，建议先扩展 ChatRequest，再新增数据库会话模型。
+# ========================================================
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    limit: int = Field(default=5, ge=1, le=10)
+
+
+class ChatSource(BaseModel):
+    document_id: int
+    document_title: str
+    chunk_id: int
+    chunk_index: int
+    content: str
+    score: float
+    source_filename: str | None
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: list[ChatSource]
+
+
 class RegisterRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(min_length=8, max_length=128)
