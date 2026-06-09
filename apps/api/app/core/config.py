@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #    集中读取后端运行所需的环境变量配置。
 #
 # 2. 关键部分拆解：
-#    - Settings：声明数据库地址、CORS 来源、认证令牌配置和上传限制。
+#    - Settings：声明数据库地址、CORS 来源、认证令牌、上传限制和 embedding 配置。
 #    - cors_origins：把逗号分隔的来源字符串转换为列表。
 #    - get_settings：缓存配置对象，避免重复解析环境变量。
 #
@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="dev-secret-change-me", alias="SECRET_KEY")
     access_token_expire_minutes: int = Field(default=60 * 24, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     max_upload_size_bytes: int = Field(default=1_048_576, alias="MAX_UPLOAD_SIZE_BYTES")
+    embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
+    embedding_dimensions: int = Field(default=1536, alias="EMBEDDING_DIMENSIONS")
+    embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    chunk_size: int = Field(default=900, alias="CHUNK_SIZE")
+    chunk_overlap: int = Field(default=150, alias="CHUNK_OVERLAP")
 
     @property
     def cors_origins(self) -> list[str]:

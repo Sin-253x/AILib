@@ -7,10 +7,62 @@ from sqlalchemy.future import select
 from app.api.deps import CurrentUserDep, SessionDep
 from app.core.config import get_settings
 from app.models.document import Document
-from app.schemas import DocumentCreate, DocumentRead, HealthResponse
+from app.models.document_chunk import DocumentChunk
+from app.schemas import (
+    DocumentCreate,
+    DocumentRead,
+    HealthResponse,
+    SearchRequest,
+    SearchResult,
+)
 from app.services.document_parser import DocumentParseError, parse_uploaded_document
+from app.services.semantic_index import create_embedding, split_text_into_chunks
 
 router = APIRouter()
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    为文档生成 chunk 和 embedding，并写入数据库会话。
+#
+# 2. 关键部分拆解：
+#    - split_text_into_chunks：把文档正文切成可检索片段。
+#    - create_embedding：按配置生成 local 或 OpenAI embedding。
+#    - DocumentChunk：保存 chunk 文本、所属用户和向量。
+#
+# 3. 重要概念与库：
+#    - embedding：用于语义相似度检索的数值向量。
+#    - pgvector：这些向量最终由 PostgreSQL 进行相似度排序。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前同步生成 embedding；大文档或 OpenAI provider 可改成后台任务。
+#
+# 5. 修改指南：
+#    - 如果要调整切分策略，建议修改 Settings 中的 CHUNK_SIZE 和 CHUNK_OVERLAP。
+# ========================================================
+def add_document_chunks(document: Document, owner_id: int) -> None:
+    settings = get_settings()
+    chunks = split_text_into_chunks(
+        document.content,
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap,
+    )
+    for chunk in chunks:
+        embedding = create_embedding(
+            chunk.content,
+            provider=settings.embedding_provider,
+            dimensions=settings.embedding_dimensions,
+            openai_api_key=settings.openai_api_key,
+            openai_model=settings.embedding_model,
+        )
+        document.chunks.append(
+            DocumentChunk(
+                owner_id=owner_id,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                embedding=embedding,
+            )
+        )
 
 
 # ======================== 代码解释 ========================
@@ -108,6 +160,7 @@ async def create_document(
         embedding=payload.embedding,
         owner_id=current_user.id,
     )
+    add_document_chunks(document, current_user.id)
     session.add(document)
     await session.commit()
     await session.refresh(document)
@@ -160,10 +213,70 @@ async def upload_document(
         source_mime_type=parsed.source_mime_type,
         source_size_bytes=parsed.source_size_bytes,
     )
+    add_document_chunks(document, current_user.id)
     session.add(document)
     await session.commit()
     await session.refresh(document)
     return to_document_read(document)
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    对当前登录用户的文档 chunks 执行 pgvector 语义搜索。
+#
+# 2. 关键部分拆解：
+#    - SearchRequest：接收查询文本和 limit。
+#    - create_embedding：把查询转换成向量。
+#    - cosine_distance：按向量距离排序，距离越小越相关。
+#    - SearchResult：返回分数、来源文档和片段。
+#
+# 3. 重要概念与库：
+#    - 余弦距离：pgvector 常用的语义相似度排序指标。
+#    - 用户隔离：搜索条件包含 owner_id，只检索当前用户 chunks。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前没有向量索引；数据量增长后应创建 ivfflat 或 hnsw 索引。
+#
+# 5. 修改指南：
+#    - 如果要改变搜索返回数量上限，建议调整 SearchRequest.limit 的约束。
+# ========================================================
+@router.post("/search", response_model=list[SearchResult])
+async def search_documents(
+    payload: SearchRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> list[SearchResult]:
+    settings = get_settings()
+    query_embedding = create_embedding(
+        payload.query,
+        provider=settings.embedding_provider,
+        dimensions=settings.embedding_dimensions,
+        openai_api_key=settings.openai_api_key,
+        openai_model=settings.embedding_model,
+    )
+    distance = DocumentChunk.embedding.cosine_distance(query_embedding)
+    result = await session.execute(
+        select(DocumentChunk, Document, distance.label("distance"))
+        .join(Document, Document.id == DocumentChunk.document_id)
+        .where(DocumentChunk.owner_id == current_user.id)
+        .order_by(distance)
+        .limit(payload.limit)
+    )
+
+    search_results: list[SearchResult] = []
+    for chunk, document, chunk_distance in result.all():
+        search_results.append(
+            SearchResult(
+                document_id=document.id,
+                document_title=document.title,
+                chunk_id=chunk.id,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                score=max(0.0, 1.0 - float(chunk_distance)),
+                source_filename=document.source_filename,
+            )
+        )
+    return search_results
 
 
 # ======================== 代码解释 ========================
@@ -195,4 +308,5 @@ def to_document_read(document: Document) -> DocumentRead:
         source_filename=document.source_filename,
         source_mime_type=document.source_mime_type,
         source_size_bytes=document.source_size_bytes,
+        chunk_count=None,
     )

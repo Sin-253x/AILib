@@ -9,11 +9,11 @@ from app.api.auth import router as auth_router
 from app.api.routes import router
 from app.core.config import get_settings
 from app.db.session import engine
-from app.models import Document, User
+from app.models import Document, DocumentChunk, User
 from app.models.base import Base
 
 settings = get_settings()
-_registered_models = (Document, User)
+_registered_models = (Document, DocumentChunk, User)
 
 
 # ======================== 代码解释 ========================

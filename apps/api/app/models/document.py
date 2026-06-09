@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.document_chunk import DocumentChunk
     from app.models.user import User
 
 
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 #    - embedding：使用 pgvector 存储 OpenAI embedding 结果。
 #    - owner_id：记录文档属于哪个登录用户。
 #    - source_*：保存上传文件名、MIME 类型和字节大小。
+#    - chunks：关联该文档切分出的向量检索片段。
 #
 # 3. 重要概念与库：
 #    - SQLAlchemy Mapped：为 ORM 字段提供类型提示和映射声明。
@@ -51,3 +53,7 @@ class Document(Base):
         default=lambda: datetime.now(UTC),
     )
     owner: Mapped["User | None"] = relationship(back_populates="documents")
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )

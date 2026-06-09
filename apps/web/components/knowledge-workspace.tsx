@@ -14,6 +14,7 @@ import {
 import { AuthPanel } from "@/components/auth-panel";
 import { DocumentForm } from "@/components/document-form";
 import { DocumentUploadForm } from "@/components/document-upload-form";
+import { SemanticSearchPanel } from "@/components/semantic-search-panel";
 import { ApiDocument, ApiUser, AuthResponse, getCurrentUser, getDocuments } from "@/lib/api";
 
 const TOKEN_STORAGE_KEY = "ailib_access_token";
@@ -29,6 +30,7 @@ const TOKEN_STORAGE_KEY = "ailib_access_token";
  *    - handleAuthenticated：保存登录或注册结果。
  *    - handleLogout：清理 token 并回到登录面板。
  *    - DocumentUploadForm：上传文本类文件并刷新文档列表。
+ *    - SemanticSearchPanel：对当前用户的 document chunks 执行语义搜索。
  *
  * 3. 重要概念与库：
  *    - localStorage：在浏览器刷新后保留访问令牌。
@@ -183,6 +185,8 @@ export function KnowledgeWorkspace() {
             )}
           </div>
         </div>
+
+        <SemanticSearchPanel token={token} />
       </div>
 
       <aside className="space-y-6">

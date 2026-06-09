@@ -30,6 +30,7 @@ export type ApiDocument = {
   source_filename: string | null;
   source_mime_type: string | null;
   source_size_bytes: number | null;
+  chunk_count: number | null;
 };
 
 export type Health = {
@@ -47,6 +48,16 @@ export type AuthResponse = {
   access_token: string;
   token_type: "bearer";
   user: ApiUser;
+};
+
+export type SearchResult = {
+  document_id: number;
+  document_title: string;
+  chunk_id: number;
+  chunk_index: number;
+  content: string;
+  score: number;
+  source_filename: string | null;
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -301,6 +312,43 @@ export async function uploadDocument(token: string, file: File): Promise<ApiDocu
   });
   if (!response.ok) {
     throw new Error("Failed to upload document");
+  }
+  return response.json();
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    调用后端语义搜索接口，返回当前用户最相关的文档片段。
+ *
+ * 2. 关键部分拆解：
+ *    - query：用户输入的自然语言查询。
+ *    - limit：限制返回结果数量。
+ *    - /search：后端 pgvector 检索接口。
+ *
+ * 3. 重要概念与库：
+ *    - 语义搜索：通过 embedding 相似度查找相关 chunk，而不是简单关键词匹配。
+ *    - Bearer token：保证只搜索当前用户自己的文档。
+ *
+ * 4. 潜在问题与改进建议：
+ *    - 当前没有流式状态；后续 RAG 阶段可把搜索结果作为回答引用。
+ *
+ * 5. 修改指南：
+ *    - 如果后端返回字段变化，建议同步更新 SearchResult 类型。
+ * ========================================================
+ */
+export async function searchDocuments(
+  token: string,
+  query: string,
+  limit = 5,
+): Promise<SearchResult[]> {
+  const response = await fetch(`${API_BASE_URL}/search`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ query, limit }),
+  });
+  if (!response.ok) {
+    throw new Error("Search failed");
   }
   return response.json();
 }

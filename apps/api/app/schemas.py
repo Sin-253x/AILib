@@ -43,6 +43,40 @@ class DocumentRead(BaseModel):
     source_filename: str | None
     source_mime_type: str | None
     source_size_bytes: int | None
+    chunk_count: int | None = None
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    定义语义搜索请求和响应使用的数据结构。
+#
+# 2. 关键部分拆解：
+#    - SearchRequest：接收自然语言查询和返回数量。
+#    - SearchResult：返回匹配文档、chunk、分数和片段内容。
+#
+# 3. 重要概念与库：
+#    - 语义搜索：把查询和文档片段都转为 embedding 后比较相似度。
+#    - Pydantic Field：限制查询长度和返回数量，避免过大请求。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前只返回 chunk 级结果；后续 RAG 阶段会把结果作为引用来源。
+#
+# 5. 修改指南：
+#    - 如果前端需要更多来源信息，建议先扩展 SearchResult。
+# ========================================================
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class SearchResult(BaseModel):
+    document_id: int
+    document_title: str
+    chunk_id: int
+    chunk_index: int
+    content: str
+    score: float
+    source_filename: str | None
 
 
 # ======================== 代码解释 ========================
