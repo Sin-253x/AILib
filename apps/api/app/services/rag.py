@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 
@@ -45,6 +46,9 @@ class RagGenerationError(RuntimeError):
 
 class LangChainUnavailableError(RagGenerationError):
     """Raised when an LLM provider is selected but LangChain packages are missing."""
+
+
+NO_CONTEXT_ANSWER = "我没有在你的知识库中找到足够相关的内容，因此不能基于现有资料回答这个问题。"
 
 
 def build_context_block(sources: list[RagSource]) -> str:
@@ -192,6 +196,118 @@ def _generate_deepseek_answer(
 
 # ======================== 代码解释 ========================
 # 1. 整体功能：
+#    把一次性文本拆成较小片段，供 mock 和无上下文保护回答模拟流式输出。
+#
+# 2. 关键部分拆解：
+#    - chunk_size：控制每次发送的字符数量。
+#    - range step：按固定窗口切片，保持实现可预测、易测试。
+#
+# 3. 重要概念与库：
+#    - Iterator：调用方可以边生成边发送，不必一次性等待完整字符串。
+#
+# 4. 潜在问题与改进建议：
+#    - 真实 LLM provider 会使用模型原生 stream；这里主要用于离线演示和测试。
+#
+# 5. 修改指南：
+#    - 如果前端希望更细粒度的打字效果，可减小 chunk_size。
+# ========================================================
+def _stream_text(answer: str, *, chunk_size: int = 24) -> Iterator[str]:
+    for start in range(0, len(answer), chunk_size):
+        yield answer[start : start + chunk_size]
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    使用 LangChain 的 stream 能力从 OpenAI provider 逐段产出 RAG 回答。
+#
+# 2. 关键部分拆解：
+#    - API Key 检查：只接受 OPENAI_API_KEY，不读取 DeepSeek key。
+#    - chain.stream：让模型输出以文本 chunk 形式逐步返回。
+#
+# 3. 重要概念与库：
+#    - LangChain Runnable：prompt、model、parser 组合后可 invoke 也可 stream。
+#
+# 4. 潜在问题与改进建议：
+#    - 不同模型的 chunk 粒度由供应商决定，前端需要按增量文本处理。
+#
+# 5. 修改指南：
+#    - 如果新增 provider，建议实现独立的 `_stream_xxx_answer`，避免 key 逻辑混用。
+# ========================================================
+def _stream_openai_answer(
+    question: str,
+    sources: list[RagSource],
+    *,
+    openai_api_key: str | None,
+    chat_model: str,
+) -> Iterator[str]:
+    if not openai_api_key:
+        raise RagGenerationError("OPENAI_API_KEY is required when CHAT_PROVIDER=openai")
+
+    try:
+        from langchain_core.output_parsers import StrOutputParser
+        from langchain_openai import ChatOpenAI
+    except ImportError as exc:
+        raise LangChainUnavailableError(
+            "LangChain packages are required when CHAT_PROVIDER=openai"
+        ) from exc
+
+    prompt = _build_rag_prompt()
+    model = ChatOpenAI(model=chat_model, temperature=0, api_key=openai_api_key)
+    chain = prompt | model | StrOutputParser()
+    for chunk in chain.stream({"question": question, "context": build_context_block(sources)}):
+        if chunk:
+            yield str(chunk)
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    使用 langchain-deepseek 的 ChatDeepSeek 原生流式能力生成 RAG 回答。
+#
+# 2. 关键部分拆解：
+#    - deepseek_api_key：只读取 DEEPSEEK_API_KEY。
+#    - ChatDeepSeek：沿用非流式回答同一模型配置。
+#    - chain.stream：把模型输出逐段交给 API 层。
+#
+# 3. 重要概念与库：
+#    - langchain-deepseek：LangChain 官方 DeepSeek 集成包。
+#    - 流式 RAG：检索来源固定，生成阶段逐段返回。
+#
+# 4. 潜在问题与改进建议：
+#    - 如果第三方网关不支持 streaming，需要切换到兼容模型或降级到非流式接口。
+#
+# 5. 修改指南：
+#    - 如果要替换 DeepSeek 模型，只需要改 CHAT_MODEL 环境变量。
+# ========================================================
+def _stream_deepseek_answer(
+    question: str,
+    sources: list[RagSource],
+    *,
+    deepseek_api_key: str | None,
+    chat_model: str,
+) -> Iterator[str]:
+    if not deepseek_api_key:
+        raise RagGenerationError(
+            "DEEPSEEK_API_KEY is required when CHAT_PROVIDER=deepseek"
+        )
+
+    try:
+        from langchain_core.output_parsers import StrOutputParser
+        from langchain_deepseek import ChatDeepSeek
+    except ImportError as exc:
+        raise LangChainUnavailableError(
+            "langchain-deepseek is required when CHAT_PROVIDER=deepseek"
+        ) from exc
+
+    prompt = _build_rag_prompt()
+    model = ChatDeepSeek(model=chat_model, temperature=0, api_key=deepseek_api_key)
+    chain = prompt | model | StrOutputParser()
+    for chunk in chain.stream({"question": question, "context": build_context_block(sources)}):
+        if chunk:
+            yield str(chunk)
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
 #    作为 RAG 回答生成入口，按 provider 分发到 mock、OpenAI 或 DeepSeek 分支。
 #
 # 2. 关键部分拆解：
@@ -219,7 +335,7 @@ def generate_rag_answer(
     deepseek_api_key: str | None = None,
 ) -> str:
     if not sources:
-        return "我没有在你的知识库中找到足够相关的内容，因此不能基于现有资料回答这个问题。"
+        return NO_CONTEXT_ANSWER
 
     if provider == "mock":
         return _build_mock_answer(question, sources)
@@ -237,4 +353,58 @@ def generate_rag_answer(
             deepseek_api_key=deepseek_api_key,
             chat_model=chat_model,
         )
+    raise RagGenerationError(f"Unsupported chat provider: {provider}")
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    作为 RAG 流式回答生成入口，按 provider 分发并逐段返回文本。
+#
+# 2. 关键部分拆解：
+#    - 无来源保护：没有检索上下文时流式返回固定拒答。
+#    - provider=mock：复用离线回答并切片，方便演示和测试。
+#    - provider=openai/deepseek：调用各自 LangChain stream 分支。
+#
+# 3. 重要概念与库：
+#    - StreamingResponse：API 层会消费这个 Iterator 并转换为 SSE。
+#    - provider-specific key：不同模型供应商的密钥校验继续隔离。
+#
+# 4. 潜在问题与改进建议：
+#    - 这里不处理 SSE 协议格式，保持服务层纯粹，便于单元测试。
+#
+# 5. 修改指南：
+#    - 新增 provider 时，先补 key 保护测试，再增加独立流式分支。
+# ========================================================
+def stream_rag_answer(
+    question: str,
+    sources: list[RagSource],
+    *,
+    provider: str,
+    chat_model: str,
+    openai_api_key: str | None = None,
+    deepseek_api_key: str | None = None,
+) -> Iterator[str]:
+    if not sources:
+        yield from _stream_text(NO_CONTEXT_ANSWER)
+        return
+
+    if provider == "mock":
+        yield from _stream_text(_build_mock_answer(question, sources))
+        return
+    if provider == "openai":
+        yield from _stream_openai_answer(
+            question,
+            sources,
+            openai_api_key=openai_api_key,
+            chat_model=chat_model,
+        )
+        return
+    if provider == "deepseek":
+        yield from _stream_deepseek_answer(
+            question,
+            sources,
+            deepseek_api_key=deepseek_api_key,
+            chat_model=chat_model,
+        )
+        return
     raise RagGenerationError(f"Unsupported chat provider: {provider}")

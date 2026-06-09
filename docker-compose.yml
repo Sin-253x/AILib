@@ -27,6 +27,9 @@ services:
       API_PORT: 8000
       CHAT_PROVIDER: ${CHAT_PROVIDER:-deepseek}
       CHAT_MODEL: ${CHAT_MODEL:-deepseek-v4-pro}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ailib_access_token}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:

@@ -21,9 +21,14 @@ import { DocumentForm } from "@/components/document-form";
 import { DocumentUploadForm } from "@/components/document-upload-form";
 import { RagChatPanel } from "@/components/rag-chat-panel";
 import { SemanticSearchPanel } from "@/components/semantic-search-panel";
-import { ApiDocument, ApiUser, AuthResponse, getCurrentUser, getDocuments } from "@/lib/api";
-
-const TOKEN_STORAGE_KEY = "ailib_access_token";
+import {
+  ApiDocument,
+  ApiUser,
+  AuthResponse,
+  getCurrentUser,
+  getDocuments,
+  logoutUser,
+} from "@/lib/api";
 
 /**
  * ======================== 代码解释 ========================
@@ -31,7 +36,7 @@ const TOKEN_STORAGE_KEY = "ailib_access_token";
  *    管理 AILib 登录工作台的认证状态、文档列表、文档过滤、文档预览和 AI 操作区。
  *
  * 2. 关键部分拆解：
- *    - token/user：保存当前浏览器会话和账户信息。
+ *    - token/user：token 只作为内存 Bearer 兼容值，浏览器会话主要依赖 httpOnly Cookie。
  *    - documents：保存当前用户拥有的知识库文档。
  *    - documentFilter：驱动本地文档标题、正文和来源文件名过滤。
  *    - selectedDocumentId：记录当前选中的文档，用于右侧详情预览。
@@ -40,13 +45,13 @@ const TOKEN_STORAGE_KEY = "ailib_access_token";
  *    - DocumentForm/DocumentUploadForm：组成文档录入侧栏。
  *
  * 3. 重要概念与库：
- *    - React Client Component：工作台依赖 localStorage、表单输入和点击状态，所以运行在浏览器端。
- *    - useEffect：页面加载后尝试从 localStorage 恢复登录状态。
+ *    - React Client Component：工作台依赖表单输入、点击状态和浏览器 Cookie，所以运行在浏览器端。
+ *    - useEffect：页面加载后通过 /auth/me 和 Cookie 恢复登录状态。
  *    - useMemo：根据文档和搜索词派生过滤结果，保持渲染逻辑清晰。
- *    - Bearer token：所有私有文档、搜索和 RAG 请求都依赖该 token 完成用户隔离。
+ *    - httpOnly Cookie：所有私有文档、搜索和 RAG 请求默认依赖 Cookie 完成用户隔离。
  *
  * 4. 潜在问题与改进建议：
- *    - localStorage token 容易受 XSS 影响；生产环境建议改为 httpOnly cookie。
+ *    - AuthResponse 仍返回 token 用于脚本兼容；浏览器不再持久化 token。
  *    - 当前文档过滤是前端本地过滤；文档量大后应改为后端分页和服务端搜索。
  *    - 当前只展示单个选中文档；后续可加入标签、收藏和批量操作。
  *
@@ -111,7 +116,7 @@ export function KnowledgeWorkspace() {
    *    - 如果后端加入分页，建议把 page/limit 参数加到本函数入参中。
    * ========================================================
    */
-  async function refreshDocuments(nextToken: string) {
+  async function refreshDocuments(nextToken?: string | null) {
     const nextDocuments = await getDocuments(nextToken);
     setDocuments(nextDocuments);
     setSelectedDocumentId((currentId) => {
@@ -126,52 +131,51 @@ export function KnowledgeWorkspace() {
   /**
    * ======================== 代码解释 ========================
    * 1. 整体功能：
-   *    保存登录或注册成功后的认证结果，并加载该用户的文档工作区。
+   *    保存登录或注册成功后的用户状态，并加载该用户的文档工作区。
    *
    * 2. 关键部分拆解：
-   *    - localStorage：持久化 access token，支持页面刷新后恢复。
-   *    - setUser/setToken：更新当前登录态。
+   *    - httpOnly Cookie：由后端 Set-Cookie 写入，前端不再保存 localStorage token。
+   *    - setUser/setToken：更新当前登录态和内存 Bearer 兼容值。
    *    - refreshDocuments：进入工作台后立即加载私有文档。
    *
    * 3. 重要概念与库：
    *    - AuthResponse：前后端共享的认证响应结构，包含 token 和 user。
    *
    * 4. 潜在问题与改进建议：
-   *    - 当前没有 token 自动刷新；过期后会在恢复会话时回到匿名状态。
+   *    - 当前没有 refresh token；过期后会在恢复会话时回到匿名状态。
    *
    * 5. 修改指南：
-   *    - 如果改用 cookie 认证，应同步移除 localStorage 写入逻辑。
+   *    - 如果未来完全移除 Bearer 兼容，可删除 token state 并同步子组件参数。
    * ========================================================
    */
   function handleAuthenticated(auth: AuthResponse) {
-    localStorage.setItem(TOKEN_STORAGE_KEY, auth.access_token);
-    setToken(auth.access_token);
+    setToken(null);
     setUser(auth.user);
     setStatus("ready");
-    refreshDocuments(auth.access_token);
+    refreshDocuments();
   }
 
   /**
    * ======================== 代码解释 ========================
    * 1. 整体功能：
-   *    清理本地认证状态，让用户退出当前私有工作台。
+   *    调用服务端登出并清理本地认证状态，让用户退出当前私有工作台。
    *
    * 2. 关键部分拆解：
-   *    - removeItem：删除浏览器里保存的 access token。
+   *    - logoutUser：让后端删除 httpOnly Cookie。
    *    - setDocuments/setSelectedDocumentId：清空私有数据展示。
    *
    * 3. 重要概念与库：
-   *    - 客户端登出：当前项目没有服务端 session，登出即删除本地 token。
+   *    - Cookie 登出：浏览器删除认证 Cookie 后回到匿名状态。
    *
    * 4. 潜在问题与改进建议：
-   *    - 如果后续加入 refresh token，需要同时调用服务端撤销接口。
+   *    - 如果后续加入 refresh token，需要后端同时撤销 refresh token。
    *
    * 5. 修改指南：
    *    - 如果要登出后跳转页面，可在本函数末尾加入路由跳转逻辑。
    * ========================================================
    */
-  function handleLogout() {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  async function handleLogout() {
+    await logoutUser();
     setToken(null);
     setUser(null);
     setDocuments([]);
@@ -182,23 +186,16 @@ export function KnowledgeWorkspace() {
 
   useEffect(() => {
     async function restoreSession() {
-      const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-      if (!storedToken) {
-        setStatus("anonymous");
-        return;
-      }
-
-      const currentUser = await getCurrentUser(storedToken);
+      const currentUser = await getCurrentUser();
       if (currentUser === null) {
-        localStorage.removeItem(TOKEN_STORAGE_KEY);
         setStatus("anonymous");
         return;
       }
 
-      setToken(storedToken);
+      setToken(null);
       setUser(currentUser);
       setStatus("ready");
-      await refreshDocuments(storedToken);
+      await refreshDocuments();
     }
 
     restoreSession();
@@ -214,7 +211,7 @@ export function KnowledgeWorkspace() {
     );
   }
 
-  if (token === null || user === null) {
+  if (user === null) {
     return (
       <section className="mx-auto grid max-w-7xl gap-6 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-md border border-line bg-white p-6">
@@ -222,7 +219,7 @@ export function KnowledgeWorkspace() {
           <h2 className="mt-4 text-xl font-semibold text-ink">Authenticated Knowledge Base</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
             Create an account or log in to store documents in your own private workspace. Document
-            APIs require a signed Bearer token and only return records owned by the current user.
+            APIs use an httpOnly cookie session and only return records owned by the current user.
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-md border border-line bg-slate-50 p-4">
@@ -238,7 +235,7 @@ export function KnowledgeWorkspace() {
             <div className="rounded-md border border-line bg-slate-50 p-4">
               <ShieldCheck className="text-berry" size={20} aria-hidden="true" />
               <p className="mt-3 text-sm font-semibold text-ink">Account isolation</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">Bearer token protected APIs</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">httpOnly cookie protected APIs</p>
             </div>
           </div>
         </div>

@@ -1,6 +1,8 @@
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.future import select
 
@@ -19,7 +21,7 @@ from app.schemas import (
     SearchResult,
 )
 from app.services.document_parser import DocumentParseError, parse_uploaded_document
-from app.services.rag import RagGenerationError, RagSource, generate_rag_answer
+from app.services.rag import RagGenerationError, RagSource, generate_rag_answer, stream_rag_answer
 from app.services.semantic_index import create_embedding, split_text_into_chunks
 
 router = APIRouter()
@@ -67,6 +69,91 @@ def add_document_chunks(document: Document, owner_id: int) -> None:
                 embedding=embedding,
             )
         )
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    把语义搜索结果转换成 RAG 服务层统一使用的来源对象。
+#
+# 2. 关键部分拆解：
+#    - SearchResult：API 层搜索结果，适合返回前端。
+#    - RagSource：RAG 服务层输入，适合 prompt 上下文和引用编号。
+#
+# 3. 重要概念与库：
+#    - 数据转换边界：路由层负责 schema/service DTO 之间的映射。
+#
+# 4. 潜在问题与改进建议：
+#    - 字段较多时可以抽到独立 mapper 文件，避免路由文件继续变长。
+#
+# 5. 修改指南：
+#    - 如果引用来源新增字段，应同步扩展 SearchResult、RagSource 和本函数。
+# ========================================================
+def to_rag_sources(search_results: list[SearchResult]) -> list[RagSource]:
+    return [
+        RagSource(
+            document_id=result.document_id,
+            document_title=result.document_title,
+            chunk_id=result.chunk_id,
+            chunk_index=result.chunk_index,
+            content=result.content,
+            score=result.score,
+            source_filename=result.source_filename,
+        )
+        for result in search_results
+    ]
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    把 RAG 来源对象转换为聊天响应引用来源。
+#
+# 2. 关键部分拆解：
+#    - ChatSource：前端展示引用所需的稳定字段。
+#    - 列表推导：保持非流式和流式接口引用结构一致。
+#
+# 3. 重要概念与库：
+#    - DTO：用明确响应结构隔离内部服务对象。
+#
+# 4. 潜在问题与改进建议：
+#    - 如果以后支持页码、段落号或高亮，需在这里补充映射。
+#
+# 5. 修改指南：
+#    - 修改引用展示字段时，应同步更新前端 ChatSource 类型。
+# ========================================================
+def to_chat_sources(rag_sources: list[RagSource]) -> list[ChatSource]:
+    return [
+        ChatSource(
+            document_id=source.document_id,
+            document_title=source.document_title,
+            chunk_id=source.chunk_id,
+            chunk_index=source.chunk_index,
+            content=source.content,
+            score=source.score,
+            source_filename=source.source_filename,
+        )
+        for source in rag_sources
+    ]
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    将事件名和数据序列化为 Server-Sent Events 文本块。
+#
+# 2. 关键部分拆解：
+#    - event：前端用于区分 sources、token、error 和 done。
+#    - json.dumps：保证中文和换行能安全穿过 SSE data 字段。
+#
+# 3. 重要概念与库：
+#    - SSE：用 text/event-stream 在普通 HTTP 连接上持续推送事件。
+#
+# 4. 潜在问题与改进建议：
+#    - SSE 单向推送适合回答流；如果要双向实时交互可考虑 WebSocket。
+#
+# 5. 修改指南：
+#    - 如果前端事件协议变化，应先改这里再同步 lib/api.ts 的解析器。
+# ========================================================
+def format_sse_event(event: str, data: object) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 # ======================== 代码解释 ========================
@@ -352,18 +439,7 @@ async def chat_with_documents(
         session=session,
         owner_id=current_user.id,
     )
-    rag_sources = [
-        RagSource(
-            document_id=result.document_id,
-            document_title=result.document_title,
-            chunk_id=result.chunk_id,
-            chunk_index=result.chunk_index,
-            content=result.content,
-            score=result.score,
-            source_filename=result.source_filename,
-        )
-        for result in search_results
-    ]
+    rag_sources = to_rag_sources(search_results)
     settings = get_settings()
     try:
         answer = generate_rag_answer(
@@ -382,19 +458,67 @@ async def chat_with_documents(
 
     return ChatResponse(
         answer=answer,
-        sources=[
-            ChatSource(
-                document_id=source.document_id,
-                document_title=source.document_title,
-                chunk_id=source.chunk_id,
-                chunk_index=source.chunk_index,
-                content=source.content,
-                score=source.score,
-                source_filename=source.source_filename,
-            )
-            for source in rag_sources
-        ],
+        sources=to_chat_sources(rag_sources),
     )
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    基于当前用户知识库执行 RAG 检索，并用 SSE 流式返回引用来源和回答 token。
+#
+# 2. 关键部分拆解：
+#    - find_relevant_chunks：先固定本次回答使用的检索来源。
+#    - sources 事件：前端先拿到引用列表，随后逐步拼接回答文本。
+#    - token 事件：逐段输出模型生成内容。
+#    - error 事件：把 provider 配置错误转成前端可展示的流事件。
+#
+# 3. 重要概念与库：
+#    - StreamingResponse：FastAPI 的流式 HTTP 响应类型。
+#    - text/event-stream：浏览器可逐段读取的 SSE MIME 类型。
+#
+# 4. 潜在问题与改进建议：
+#    - 真实生产环境可增加心跳事件，避免代理层长连接超时。
+#
+# 5. 修改指南：
+#    - 如果要改成 WebSocket，保留 to_rag_sources 和 stream_rag_answer，替换协议层即可。
+# ========================================================
+@router.post("/chat/stream")
+async def stream_chat_with_documents(
+    payload: ChatRequest,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> StreamingResponse:
+    search_results = await find_relevant_chunks(
+        payload.question,
+        limit=payload.limit,
+        session=session,
+        owner_id=current_user.id,
+    )
+    rag_sources = to_rag_sources(search_results)
+    chat_sources = to_chat_sources(rag_sources)
+    settings = get_settings()
+
+    def event_stream():
+        yield format_sse_event(
+            "sources",
+            [source.model_dump(mode="json") for source in chat_sources],
+        )
+        try:
+            for chunk in stream_rag_answer(
+                payload.question,
+                rag_sources,
+                provider=settings.chat_provider,
+                openai_api_key=settings.openai_api_key,
+                deepseek_api_key=settings.deepseek_api_key,
+                chat_model=settings.chat_model,
+            ):
+                yield format_sse_event("token", chunk)
+        except RagGenerationError as exc:
+            yield format_sse_event("error", str(exc))
+            return
+        yield format_sse_event("done", {"status": "ok"})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 # ======================== 代码解释 ========================

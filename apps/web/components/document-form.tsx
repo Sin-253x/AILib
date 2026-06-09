@@ -17,7 +17,7 @@ import { createDocument } from "@/lib/api";
  *
  * 3. 重要概念与库：
  *    - Client Component：需要使用 useState，所以声明为客户端组件。
- *    - Bearer token：把当前用户身份传给后端。
+ *    - httpOnly Cookie：浏览器默认把当前用户身份传给后端。
  *
  * 4. 潜在问题与改进建议：
  *    - 当前只是文本创建；上传阶段应改为文件选择和上传进度。
@@ -27,7 +27,7 @@ import { createDocument } from "@/lib/api";
  *    - 如果要扩展表单字段，建议先增加 state，再同步 createDocument 和后端 schema。
  * ========================================================
  */
-export function DocumentForm({ token, onSaved }: { token: string; onSaved: () => void }) {
+export function DocumentForm({ token, onSaved }: { token: string | null; onSaved: () => void }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");

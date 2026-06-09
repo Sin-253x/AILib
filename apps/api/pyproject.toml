@@ -4,13 +4,16 @@ version = "0.1.0"
 description = "FastAPI backend for AILib"
 requires-python = ">=3.11"
 dependencies = [
+  "alembic>=1.13.3",
   "asyncpg>=0.30.0",
   "fastapi[standard]>=0.115.0",
   "langchain-core>=0.3.35",
   "langchain-deepseek>=1.1.0",
   "langchain-openai>=0.3.35",
   "pgvector>=0.3.6",
+  "pypdf>=5.1.0",
   "pydantic-settings>=2.7.0",
+  "python-docx>=1.1.2",
   "sqlalchemy[asyncio]>=2.0.36",
   "uvicorn[standard]>=0.34.0"
 ]
@@ -28,3 +31,23 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    明确告诉 setuptools 只把 FastAPI 应用 app 打包为 Python 包。
+#
+# 2. 关键部分拆解：
+#    - include = ["app*"]：包含 app 和其子模块。
+#    - alembic 目录：作为迁移脚本目录复制到镜像，不作为 import 包发布。
+#
+# 3. 重要概念与库：
+#    - setuptools package discovery：默认会扫描顶层包，迁移目录会造成歧义。
+#
+# 4. 潜在问题与改进建议：
+#    - 如果后续新增真正的 Python 顶层包，需要在 include 中显式加入。
+#
+# 5. 修改指南：
+#    - 只新增脚本或迁移目录时，不应把它们加入 Python 包发现范围。
+# ========================================================
+[tool.setuptools.packages.find]
+include = ["app*"]

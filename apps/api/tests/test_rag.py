@@ -1,4 +1,10 @@
-from app.services.rag import RagGenerationError, RagSource, build_context_block, generate_rag_answer
+from app.services.rag import (
+    RagGenerationError,
+    RagSource,
+    build_context_block,
+    generate_rag_answer,
+    stream_rag_answer,
+)
 
 
 # ======================== 代码解释 ========================
@@ -167,3 +173,47 @@ def test_generate_rag_answer_requires_openai_key() -> None:
         assert "OPENAI_API_KEY" in str(exc)
     else:
         raise AssertionError("OpenAI provider should require an OpenAI API key")
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    验证 RAG 服务提供和一次性回答一致的流式 token 生成入口。
+#
+# 2. 关键部分拆解：
+#    - stream_rag_answer：按 provider 生成可迭代文本片段。
+#    - chunks：模拟 FastAPI StreamingResponse 逐段发送给前端的内容。
+#
+# 3. 重要概念与库：
+#    - 流式输出：先返回部分回答，降低用户等待整段 LLM 结果的体感延迟。
+#    - provider 复用：mock、DeepSeek 和 OpenAI 应共享同一入口语义。
+#
+# 4. 潜在问题与改进建议：
+#    - 该测试使用 mock provider，不联网调用真实模型。
+#
+# 5. 修改指南：
+#    - 如果后续改为 SSE 封装，服务层仍建议保持纯文本 chunk 迭代，路由层再负责协议格式。
+# ========================================================
+def test_stream_rag_answer_in_mock_mode_yields_answer_chunks() -> None:
+    chunks = list(
+        stream_rag_answer(
+            question="How does streaming work?",
+            sources=[
+                RagSource(
+                    document_id=5,
+                    document_title="Streaming Notes",
+                    chunk_id=50,
+                    chunk_index=0,
+                    content="Streaming returns answer chunks as they are generated.",
+                    score=0.93,
+                    source_filename="streaming.md",
+                )
+            ],
+            provider="mock",
+            openai_api_key=None,
+            deepseek_api_key=None,
+            chat_model="deepseek-v4-pro",
+        )
+    )
+
+    assert len(chunks) > 1
+    assert "Streaming returns answer chunks" in "".join(chunks)

@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #    集中读取后端运行所需的环境变量配置。
 #
 # 2. 关键部分拆解：
-#    - Settings：声明数据库地址、CORS 来源、认证令牌、上传限制和 embedding 配置。
+#    - Settings：声明数据库地址、CORS 来源、认证令牌、Cookie、上传限制和 AI 配置。
 #    - cors_origins：把逗号分隔的来源字符串转换为列表。
 #    - get_settings：缓存配置对象，避免重复解析环境变量。
 #
@@ -19,7 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #
 # 4. 潜在问题与改进建议：
 #    - 当前 secret_key 有开发默认值；部署时必须通过环境变量覆盖。
-#    - 当前没有读取 OpenAI key；RAG 阶段需要增加 AI 相关配置。
+#    - Cookie secure 在本地默认为 false；上线 HTTPS 后必须改为 true。
 #
 # 5. 修改指南：
 #    - 如果新增环境变量，建议先在 Settings 中添加字段，再同步 .env.example 和 README。
@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     allowed_origins: str = Field(default="http://localhost:3000", alias="ALLOWED_ORIGINS")
     secret_key: str = Field(default="dev-secret-change-me", alias="SECRET_KEY")
     access_token_expire_minutes: int = Field(default=60 * 24, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    auth_cookie_name: str = Field(default="ailib_access_token", alias="AUTH_COOKIE_NAME")
+    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_samesite: str = Field(default="lax", alias="AUTH_COOKIE_SAMESITE")
     max_upload_size_bytes: int = Field(default=1_048_576, alias="MAX_UPLOAD_SIZE_BYTES")
     embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
     embedding_dimensions: int = Field(default=1536, alias="EMBEDDING_DIMENSIONS")

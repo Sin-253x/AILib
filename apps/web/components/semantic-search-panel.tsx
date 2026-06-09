@@ -26,7 +26,7 @@ import { SearchResult, searchDocuments } from "@/lib/api";
  *    - 如果要调整结果数量，建议修改 searchDocuments 的 limit 参数。
  * ========================================================
  */
-export function SemanticSearchPanel({ token }: { token: string }) {
+export function SemanticSearchPanel({ token }: { token: string | null }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [status, setStatus] = useState<"idle" | "searching" | "searched" | "error">("idle");

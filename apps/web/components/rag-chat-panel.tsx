@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { MessageSquareText, Send } from "lucide-react";
 
-import { ChatResponse, chatWithDocuments } from "@/lib/api";
+import { ChatResponse, streamChatWithDocuments } from "@/lib/api";
 
 /**
  * ======================== 代码解释 ========================
@@ -13,7 +13,7 @@ import { ChatResponse, chatWithDocuments } from "@/lib/api";
  * 2. 关键部分拆解：
  *    - question：保存当前输入框中的问题。
  *    - response：保存后端返回的回答和 sources。
- *    - handleSubmit：提交问题、调用 chatWithDocuments、更新回答状态。
+ *    - handleSubmit：提交问题、调用 streamChatWithDocuments、逐段更新回答状态。
  *    - sources 列表：展示本次回答引用的文档片段。
  *
  * 3. 重要概念与库：
@@ -23,13 +23,13 @@ import { ChatResponse, chatWithDocuments } from "@/lib/api";
  *
  * 4. 潜在问题与改进建议：
  *    - 当前只展示单轮问答；后续可增加 messages 数组和 conversation_id 支持多轮历史。
- *    - 当前不是流式输出；真实产品可接入 SSE 改善等待体验。
+ *    - 当前展示单轮流式回答；多轮历史可用 messages 数组扩展。
  *
  * 5. 修改指南：
  *    - 如果要展示多轮历史，建议把 response 改为 message 列表，并在提交成功后追加新消息。
  * ========================================================
  */
-export function RagChatPanel({ token }: { token: string }) {
+export function RagChatPanel({ token }: { token: string | null }) {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState<ChatResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "asking" | "answered" | "error">("idle");
@@ -37,22 +37,22 @@ export function RagChatPanel({ token }: { token: string }) {
   /**
    * ======================== 代码解释 ========================
    * 1. 整体功能：
-   *    处理 RAG 对话表单提交，并把后端回答渲染到页面。
+   *    处理 RAG 对话表单提交，并把后端 SSE token 增量渲染到页面。
    *
    * 2. 关键部分拆解：
    *    - preventDefault：阻止浏览器刷新页面。
-   *    - chatWithDocuments：携带 token 调用受保护的 /chat 接口。
-   *    - setResponse：保存回答和引用来源，供 JSX 渲染。
+   *    - streamChatWithDocuments：调用受保护的 /chat/stream 接口。
+   *    - onSources/onToken：先保存引用来源，再持续追加回答文本。
    *
    * 3. 重要概念与库：
    *    - async/await：等待后端完成检索和回答生成。
-   *    - ChatResponse：约束回答和来源的前后端数据契约。
+   *    - SSE：后端逐段发送 sources、token 和 done 事件。
    *
    * 4. 潜在问题与改进建议：
    *    - 当前错误提示较通用；后续可解析后端 detail，提示 DeepSeek/OpenAI Key 或 LangChain 依赖问题。
    *
    * 5. 修改指南：
-   *    - 如果要支持可调召回数量，建议新增 select state，并把 limit 传给 chatWithDocuments。
+   *    - 如果要支持停止生成，建议给 streamChatWithDocuments 增加 AbortSignal。
    * ========================================================
    */
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -61,9 +61,22 @@ export function RagChatPanel({ token }: { token: string }) {
     if (!trimmedQuestion) return;
 
     setStatus("asking");
+    setResponse({ answer: "", sources: [] });
     try {
-      const nextResponse = await chatWithDocuments(token, trimmedQuestion, 5);
-      setResponse(nextResponse);
+      await streamChatWithDocuments(token, trimmedQuestion, 5, {
+        onSources: (sources) => {
+          setResponse((current) => ({
+            answer: current?.answer ?? "",
+            sources,
+          }));
+        },
+        onToken: (answerToken) => {
+          setResponse((current) => ({
+            answer: `${current?.answer ?? ""}${answerToken}`,
+            sources: current?.sources ?? [],
+          }));
+        },
+      });
       setStatus("answered");
     } catch {
       setStatus("error");
@@ -100,8 +113,8 @@ export function RagChatPanel({ token }: { token: string }) {
           }`}
         >
           {status === "error"
-            ? "Chat failed. Check the API, chat provider, and model key settings."
-            : "Answers are generated from your private document chunks with citations."}
+            ? "Chat failed. Check the API, chat provider, model key settings, or stream support."
+            : "Answers stream from your private document chunks with citations."}
         </p>
       </div>
 

@@ -82,3 +82,55 @@ def test_parse_upload_rejects_oversized_file() -> None:
             content_bytes=b"x" * 11,
             max_size_bytes=10,
         )
+
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    验证上传解析服务会把 PDF 和 DOCX 文件分发给专用解析器。
+#
+# 2. 关键部分拆解：
+#    - monkeypatch：替换底层二进制解析函数，避免测试依赖复杂样本文档。
+#    - parse_uploaded_document：仍然覆盖真实的扩展名、大小和空内容校验流程。
+#
+# 3. 重要概念与库：
+#    - PDF/DOCX：知识库常见办公文档格式，需要和纯文本分别解析。
+#    - 单元测试隔离：这里测试分发和清洗逻辑，不测试第三方库本身。
+#
+# 4. 潜在问题与改进建议：
+#    - 后续可增加真实 PDF/DOCX fixture 覆盖第三方解析库兼容性。
+#
+# 5. 修改指南：
+#    - 如果新增 PPTX 等格式，建议按同样方式先增加分发测试。
+# ========================================================
+def test_parse_pdf_upload_uses_pdf_extractor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import document_parser
+
+    monkeypatch.setattr(document_parser, "_extract_pdf_text", lambda _: "PDF knowledge base text")
+
+    parsed = parse_uploaded_document(
+        filename="research.pdf",
+        content_type="application/pdf",
+        content_bytes=b"%PDF-1.4 fake bytes for unit dispatch",
+        max_size_bytes=1024,
+    )
+
+    assert parsed.title == "research"
+    assert parsed.content == "PDF knowledge base text"
+    assert parsed.source_filename == "research.pdf"
+
+
+def test_parse_docx_upload_uses_docx_extractor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import document_parser
+
+    monkeypatch.setattr(document_parser, "_extract_docx_text", lambda _: "DOCX knowledge base text")
+
+    parsed = parse_uploaded_document(
+        filename="notes.docx",
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        content_bytes=b"fake docx bytes for unit dispatch",
+        max_size_bytes=1024,
+    )
+
+    assert parsed.title == "notes"
+    assert parsed.content == "DOCX knowledge base text"
+    assert parsed.source_filename == "notes.docx"
