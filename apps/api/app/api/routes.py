@@ -448,6 +448,7 @@ async def chat_with_documents(
             provider=settings.chat_provider,
             openai_api_key=settings.openai_api_key,
             deepseek_api_key=settings.deepseek_api_key,
+            deepseek_api_base=settings.deepseek_api_base,
             chat_model=settings.chat_model,
         )
     except RagGenerationError as exc:
@@ -510,6 +511,7 @@ async def stream_chat_with_documents(
                 provider=settings.chat_provider,
                 openai_api_key=settings.openai_api_key,
                 deepseek_api_key=settings.deepseek_api_key,
+                deepseek_api_base=settings.deepseek_api_base,
                 chat_model=settings.chat_model,
             ):
                 yield format_sse_event("token", chunk)

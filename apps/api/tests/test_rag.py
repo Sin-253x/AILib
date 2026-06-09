@@ -121,6 +121,7 @@ def test_generate_rag_answer_requires_deepseek_key() -> None:
             provider="deepseek",
             deepseek_api_key=None,
             openai_api_key="not-a-deepseek-key",
+            deepseek_api_base="https://api.deepseek.com",
             chat_model="deepseek-v4-pro",
         )
     except RagGenerationError as exc:
@@ -167,6 +168,7 @@ def test_generate_rag_answer_requires_openai_key() -> None:
             provider="openai",
             openai_api_key=None,
             deepseek_api_key="not-an-openai-key",
+            deepseek_api_base="https://api.deepseek.com",
             chat_model="gpt-4o-mini",
         )
     except RagGenerationError as exc:
@@ -211,6 +213,7 @@ def test_stream_rag_answer_in_mock_mode_yields_answer_chunks() -> None:
             provider="mock",
             openai_api_key=None,
             deepseek_api_key=None,
+            deepseek_api_base="https://api.deepseek.com",
             chat_model="deepseek-v4-pro",
         )
     )

@@ -153,25 +153,27 @@ def _generate_openai_answer(
 #
 # 2. 关键部分拆解：
 #    - deepseek_api_key：只接收 DEEPSEEK_API_KEY，不再回退到 OPENAI_API_KEY。
-#    - ChatDeepSeek：按 CHAT_MODEL 创建 DeepSeek 聊天模型实例。
+#    - ChatDeepSeek：按 CHAT_MODEL 和 DEEPSEEK_API_BASE 创建 DeepSeek 聊天模型实例。
 #    - prompt | model | StrOutputParser：组成 LangChain 标准调用链。
 #
 # 3. 重要概念与库：
 #    - langchain-deepseek：LangChain 官方 DeepSeek 集成包。
 #    - DEEPSEEK_API_KEY：DeepSeek provider 独立使用的环境变量名。
+#    - DEEPSEEK_API_BASE：DeepSeek 官方 OpenAI-compatible base URL，默认 https://api.deepseek.com。
 #
 # 4. 潜在问题与改进建议：
-#    - 如果改用第三方网关模型名，需要确认该网关是否兼容 ChatDeepSeek。
+#    - 如果改用第三方网关模型名，需要同时设置 DEEPSEEK_API_BASE 和该网关支持的模型名。
 #    - 当前仍是非流式回答，后续可接入 streaming 提升交互体验。
 #
 # 5. 修改指南：
-#    - 如果要切换 DeepSeek 模型，只需要修改 CHAT_MODEL，不需要改业务代码。
+#    - 如果要切换 DeepSeek 官方或网关地址，只需要修改 CHAT_MODEL / DEEPSEEK_API_BASE。
 # ========================================================
 def _generate_deepseek_answer(
     question: str,
     sources: list[RagSource],
     *,
     deepseek_api_key: str | None,
+    deepseek_api_base: str,
     chat_model: str,
 ) -> str:
     if not deepseek_api_key:
@@ -187,11 +189,19 @@ def _generate_deepseek_answer(
             "langchain-deepseek is required when CHAT_PROVIDER=deepseek"
         ) from exc
 
-    prompt = _build_rag_prompt()
-    model = ChatDeepSeek(model=chat_model, temperature=0, api_key=deepseek_api_key)
-    chain = prompt | model | StrOutputParser()
-    result = chain.invoke({"question": question, "context": build_context_block(sources)})
-    return str(result).strip()
+    try:
+        prompt = _build_rag_prompt()
+        model = ChatDeepSeek(
+            model=chat_model,
+            temperature=0,
+            api_key=deepseek_api_key,
+            base_url=deepseek_api_base,
+        )
+        chain = prompt | model | StrOutputParser()
+        result = chain.invoke({"question": question, "context": build_context_block(sources)})
+        return str(result).strip()
+    except Exception as exc:
+        raise RagGenerationError(f"DeepSeek generation failed: {exc}") from exc
 
 
 # ======================== 代码解释 ========================
@@ -265,7 +275,7 @@ def _stream_openai_answer(
 #
 # 2. 关键部分拆解：
 #    - deepseek_api_key：只读取 DEEPSEEK_API_KEY。
-#    - ChatDeepSeek：沿用非流式回答同一模型配置。
+#    - ChatDeepSeek：沿用非流式回答同一模型和 base URL 配置。
 #    - chain.stream：把模型输出逐段交给 API 层。
 #
 # 3. 重要概念与库：
@@ -276,13 +286,14 @@ def _stream_openai_answer(
 #    - 如果第三方网关不支持 streaming，需要切换到兼容模型或降级到非流式接口。
 #
 # 5. 修改指南：
-#    - 如果要替换 DeepSeek 模型，只需要改 CHAT_MODEL 环境变量。
+#    - 如果要替换 DeepSeek 官方或网关地址，只需要修改 CHAT_MODEL / DEEPSEEK_API_BASE。
 # ========================================================
 def _stream_deepseek_answer(
     question: str,
     sources: list[RagSource],
     *,
     deepseek_api_key: str | None,
+    deepseek_api_base: str,
     chat_model: str,
 ) -> Iterator[str]:
     if not deepseek_api_key:
@@ -298,12 +309,20 @@ def _stream_deepseek_answer(
             "langchain-deepseek is required when CHAT_PROVIDER=deepseek"
         ) from exc
 
-    prompt = _build_rag_prompt()
-    model = ChatDeepSeek(model=chat_model, temperature=0, api_key=deepseek_api_key)
-    chain = prompt | model | StrOutputParser()
-    for chunk in chain.stream({"question": question, "context": build_context_block(sources)}):
-        if chunk:
-            yield str(chunk)
+    try:
+        prompt = _build_rag_prompt()
+        model = ChatDeepSeek(
+            model=chat_model,
+            temperature=0,
+            api_key=deepseek_api_key,
+            base_url=deepseek_api_base,
+        )
+        chain = prompt | model | StrOutputParser()
+        for chunk in chain.stream({"question": question, "context": build_context_block(sources)}):
+            if chunk:
+                yield str(chunk)
+    except Exception as exc:
+        raise RagGenerationError(f"DeepSeek generation failed: {exc}") from exc
 
 
 # ======================== 代码解释 ========================
@@ -333,6 +352,7 @@ def generate_rag_answer(
     chat_model: str,
     openai_api_key: str | None = None,
     deepseek_api_key: str | None = None,
+    deepseek_api_base: str = "https://api.deepseek.com",
 ) -> str:
     if not sources:
         return NO_CONTEXT_ANSWER
@@ -351,6 +371,7 @@ def generate_rag_answer(
             question,
             sources,
             deepseek_api_key=deepseek_api_key,
+            deepseek_api_base=deepseek_api_base,
             chat_model=chat_model,
         )
     raise RagGenerationError(f"Unsupported chat provider: {provider}")
@@ -383,6 +404,7 @@ def stream_rag_answer(
     chat_model: str,
     openai_api_key: str | None = None,
     deepseek_api_key: str | None = None,
+    deepseek_api_base: str = "https://api.deepseek.com",
 ) -> Iterator[str]:
     if not sources:
         yield from _stream_text(NO_CONTEXT_ANSWER)
@@ -404,6 +426,7 @@ def stream_rag_answer(
             question,
             sources,
             deepseek_api_key=deepseek_api_key,
+            deepseek_api_base=deepseek_api_base,
             chat_model=chat_model,
         )
         return

@@ -19,7 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #
 # 4. 潜在问题与改进建议：
 #    - 当前 secret_key 有开发默认值；部署时必须通过环境变量覆盖。
-#    - Cookie secure 在本地默认为 false；上线 HTTPS 后必须改为 true。
+#    - DeepSeek base URL 默认使用官方 OpenAI-compatible 入口；接入第三方网关时可覆盖。
 #
 # 5. 修改指南：
 #    - 如果新增环境变量，建议先在 Settings 中添加字段，再同步 .env.example 和 README。
@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     deepseek_api_key: str | None = Field(default=None, alias="DEEPSEEK_API_KEY")
+    deepseek_api_base: str = Field(default="https://api.deepseek.com", alias="DEEPSEEK_API_BASE")
     chunk_size: int = Field(default=900, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=150, alias="CHUNK_OVERLAP")
     chat_provider: str = Field(default="deepseek", alias="CHAT_PROVIDER")
