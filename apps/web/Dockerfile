@@ -48,4 +48,17 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 EXPOSE 3000
-CMD ["node", "node_modules/next/dist/bin/next", "start"]
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    在生产容器中启动 Next.js Web 服务。
+# 2. 关键部分拆解：
+#    - ${PORT:-3000}：优先使用 Railway 等平台注入的 PORT，没有注入时回退到本地 Docker 默认端口 3000。
+#    - next start -p：显式指定监听端口，避免平台健康检查访问不到服务。
+# 3. 重要概念与库：
+#    - Next.js 生产运行时：使用构建后的 .next 产物提供页面和 API 代理逻辑。
+# 4. 潜在问题与改进建议：
+#    - NEXT_PUBLIC_API_BASE_URL 是构建期变量，Railway 修改该变量后必须重新部署 Web 服务。
+# 5. 修改指南：
+#    - 如果后续切到 standalone 输出，可以保留相同的 PORT 读取方式，只替换启动入口。
+# ========================================================
+CMD ["sh", "-c", "node node_modules/next/dist/bin/next start -p ${PORT:-3000}"]

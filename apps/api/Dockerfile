@@ -31,4 +31,18 @@ RUN uv pip install --system --no-cache --no-deps -r requirements.txt
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    启动容器时先执行 Alembic 数据库迁移，再启动 FastAPI 服务。
+# 2. 关键部分拆解：
+#    - ${PORT:-8000}：优先使用 Railway 等平台注入的 PORT，没有注入时回退到本地 Docker 默认端口 8000。
+#    - alembic upgrade head：确保数据库表结构与当前代码版本一致。
+#    - uvicorn：把 FastAPI 应用绑定到 0.0.0.0，允许容器外部访问。
+# 3. 重要概念与库：
+#    - Railway PORT：平台会动态分配监听端口，应用必须读取该变量，否则可能部署后无法通过健康检查。
+# 4. 潜在问题与改进建议：
+#    - 生产环境如果希望迁移和应用启动解耦，可以把 Alembic 拆成独立 release job。
+# 5. 修改指南：
+#    - 如果后续换成 Gunicorn 或多 worker 部署，保留 ${PORT:-8000} 端口读取逻辑。
+# ========================================================
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
