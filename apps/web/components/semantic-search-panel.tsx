@@ -67,22 +67,32 @@ export function SemanticSearchPanel({ token }: { token: string | null }) {
   }
 
   return (
-    <div className="rounded-md border border-line bg-white">
-      <div className="border-b border-line p-4">
-        <div className="flex items-center gap-2">
-          <Search className="text-teal-700" size={20} aria-hidden="true" />
-          <h2 className="font-semibold text-ink">Semantic Search</h2>
+    <div className="app-glass overflow-hidden rounded-2xl">
+      <div className="border-b border-slate-200/80 bg-white/65 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-xl bg-teal-50 text-teal-700">
+              <Search size={18} aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="font-semibold text-ink">Semantic Search</h2>
+              <p className="text-xs text-slate-500">Inspect vector matches before asking</p>
+            </div>
+          </div>
+          <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] text-slate-500">
+            top 5
+          </span>
         </div>
         <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
           <input
-            className="h-10 flex-1 rounded-md border border-line px-3 outline-none focus:border-teal-700"
+            className="h-11 flex-1 rounded-xl border border-slate-200 bg-white/95 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:shadow-[0_0_0_4px_rgba(15,118,110,0.12)]"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Ask what your documents discuss"
             type="search"
             value={query}
           />
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="interactive-lift inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
             disabled={status === "searching"}
             type="submit"
           >
@@ -97,16 +107,16 @@ export function SemanticSearchPanel({ token }: { token: string | null }) {
         </p>
       </div>
 
-      <div className="divide-y divide-line">
+      <div className="divide-y divide-slate-100">
         {results.length > 0 ? (
           results.map((result) => (
-            <article key={result.chunk_id} className="p-4">
+            <article key={result.chunk_id} className="p-4 transition hover:bg-slate-50/70">
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
                   <h3 className="font-semibold text-ink">{result.document_title}</h3>
                   <p className="mt-1 text-sm leading-6 text-slate-600">{result.content}</p>
                 </div>
-                <span className="w-fit rounded-md border border-line px-2 py-1 text-xs text-slate-600">
+                <span className="w-fit rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600">
                   {Math.round(result.score * 100)}%
                 </span>
               </div>
@@ -117,8 +127,10 @@ export function SemanticSearchPanel({ token }: { token: string | null }) {
             </article>
           ))
         ) : (
-          <div className="p-4 text-sm text-slate-500">
-            {status === "searched" ? "No semantic matches yet." : "Run a query to see matching chunks."}
+          <div className="p-5 text-sm text-slate-500">
+            {status === "searched"
+              ? "No semantic matches yet."
+              : "Run a query to see matching chunks."}
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { ApiDocument } from "../lib/api";
 
 const apiBaseUrl = "http://localhost:8000";
 
@@ -27,7 +28,22 @@ test("authenticated workspace supports documents, upload, search, and streaming 
   page,
 }) => {
   let isAuthenticated = false;
-  const documents = [
+  /**
+   * ======================== 代码解释 ========================
+   * 1. 整体功能：
+   *    显式声明 mock 文档列表使用前端 API 契约类型，避免 TypeScript 根据第一条数据把可空字段误推断为纯 string/number。
+   * 2. 关键部分拆解：
+   *    - ApiDocument[]：复用真实接口类型，让 E2E mock 与页面数据契约保持一致。
+   *    - source_* 可空字段：覆盖手动创建文档没有上传来源文件的场景。
+   * 3. 重要概念与库：
+   *    - type-only import：只参与类型检查，不会影响 Playwright 运行时打包。
+   * 4. 潜在问题与改进建议：
+   *    - 如果后端文档响应字段变化，应优先修改 lib/api.ts 的 ApiDocument，再让本测试跟随类型报错修正。
+   * 5. 修改指南：
+   *    - 新增 mock 文档字段时，保持这里和 ApiDocument 类型同步。
+   * ========================================================
+   */
+  const documents: ApiDocument[] = [
     {
       id: 1,
       title: "Vector Notes",

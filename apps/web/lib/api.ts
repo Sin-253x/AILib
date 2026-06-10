@@ -74,6 +74,23 @@ export type StreamChatHandlers = {
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    区分浏览器访问 API 的公网/宿主机地址，以及 Next.js 服务端在 Docker 网络内访问 API 的内部地址。
+ * 2. 关键部分拆解：
+ *    - API_BASE_URL：暴露给浏览器，适合 http://localhost:8000 这类宿主机端口。
+ *    - SERVER_API_BASE_URL：只在服务端使用，Docker Compose 中指向 http://api:8000。
+ * 3. 重要概念与库：
+ *    - Next.js Server Component：在 Web 容器内执行，localhost 代表 Web 容器自身。
+ *    - Docker service DNS：Compose 服务名 api 可在同一网络内解析到 API 容器。
+ * 4. 潜在问题与改进建议：
+ *    - 如果部署到同域反向代理，SERVER_API_BASE_URL 可改为内网服务地址，浏览器仍使用公开地址。
+ * 5. 修改指南：
+ *    - 修改 Docker 服务名或端口时，需要同步 docker-compose.yml 的 API_SERVER_BASE_URL。
+ * ========================================================
+ */
+const SERVER_API_BASE_URL = process.env.API_SERVER_BASE_URL ?? API_BASE_URL;
 
 /**
  * ======================== 代码解释 ========================
@@ -152,7 +169,7 @@ function credentialOptions(): RequestInit {
  */
 export async function getHealth(): Promise<Health | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`, { cache: "no-store" });
+    const response = await fetch(`${SERVER_API_BASE_URL}/health`, { cache: "no-store" });
     if (!response.ok) return null;
     return response.json();
   } catch {

@@ -1,0 +1,102 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    在 VPS 上以生产方式运行 AILib：Caddy HTTPS、Next.js Web、FastAPI API、PostgreSQL + pgvector。
+#
+# 2. 关键部分拆解：
+#    - caddy：唯一暴露 80/443 的公网入口。
+#    - web：只在 Docker 内网暴露 3000，由 Caddy 反代。
+#    - api：只在 Docker 内网暴露 8000，由 Caddy 的 /api 路由访问。
+#    - postgres：不暴露公网端口，只给 API 内网访问。
+#
+# 3. 重要概念与库：
+#    - pgvector/pgvector:pg17：自带 PostgreSQL 和 pgvector 扩展，避免服务器手动编译。
+#    - Docker healthcheck：确保 API 在数据库可用后再启动迁移和服务。
+#
+# 4. 潜在问题与改进建议：
+#    - 单机部署适合个人使用；多人高并发应拆分数据库、对象存储和后台任务。
+#
+# 5. 修改指南：
+#    - 如果换域名，修改 deploy/.env.prod 中的 AILIB_DOMAIN 后重新 up -d --build。
+# ========================================================
+name: ailib-prod
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: ailib-caddy
+    restart: unless-stopped
+    env_file:
+      - ./.env.prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - api
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        # 代码解释：浏览器端使用同域 /api，由 Caddy 反向代理到 FastAPI，减少 CORS 和 Cookie 域名问题。
+        NEXT_PUBLIC_API_BASE_URL: /api
+    container_name: ailib-web
+    restart: unless-stopped
+    environment:
+      # 代码解释：客户端请求走同域 /api，服务端组件请求走 Docker 内网 API 地址，避免容器内回环访问公网域名。
+      NEXT_PUBLIC_API_BASE_URL: /api
+      API_SERVER_BASE_URL: http://api:8000
+    expose:
+      - "3000"
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ../apps/api
+    container_name: ailib-api
+    restart: unless-stopped
+    env_file:
+      - ./.env.prod
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ALLOWED_ORIGINS: https://${AILIB_DOMAIN}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ailib_access_token}
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_SAMESITE: lax
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ailib-postgres
+    restart: unless-stopped
+    env_file:
+      - ./.env.prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

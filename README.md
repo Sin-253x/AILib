@@ -131,7 +131,35 @@ Services:
 - API docs: http://localhost:8000/docs
 - PostgreSQL: localhost:5432
 
+## Deploy As A Personal Website
+
+For a long-running personal site on a VPS with a domain and HTTPS, use the production deployment files under `deploy/`:
+
+```bash
+cp deploy/.env.prod.example deploy/.env.prod
+cd deploy
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+Recommended URL shape:
+
+```text
+https://kb.yourdomain.com
+```
+
+The production deployment uses Caddy for automatic HTTPS, keeps PostgreSQL private inside Docker, and exposes FastAPI through same-origin `/api` to avoid CORS and Cookie domain issues.
+
+Details: [VPS Deployment Guide](deploy/README_DEPLOY.md)
+
 ## Run Locally
+
+For Windows personal local deployment without Docker, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/local/Start-AILibLocal.ps1 -OpenBrowser
+```
+
+Details: [Local Deployment Guide](docs/LOCAL_DEPLOYMENT.md)
 
 Start PostgreSQL:
 
@@ -201,6 +229,7 @@ cd apps/api
 - `POST /documents/upload`: parses and stores an uploaded TXT or Markdown document.
 - `POST /search`: runs semantic search over the authenticated user's document chunks.
 - `POST /chat`: generates a RAG answer with citations from the authenticated user's document chunks.
+- `POST /chat/stream`: streams a RAG answer with SSE events.
 
 Authenticated requests require:
 
@@ -213,6 +242,8 @@ Authorization: Bearer <access_token>
 - [Project Showcase](docs/PROJECT_SHOWCASE.md)
 - [Demo Script](docs/DEMO_SCRIPT.md)
 - [Quality Checklist](docs/QUALITY_CHECKLIST.md)
+- [Local Deployment Guide](docs/LOCAL_DEPLOYMENT.md)
+- [VPS Deployment Guide](deploy/README_DEPLOY.md)
 - [Code Explanation Template](prompts/explain-code.md)
 - [Phase Plans](docs/superpowers/plans)
 
@@ -230,10 +261,9 @@ The required sections are:
 4. 潜在问题与改进建议
 5. 修改指南
 
-## Known Non-Production Limits
+## Known Local-First Limits
 
-- Database initialization uses `Base.metadata.create_all`; production should use Alembic migrations.
-- Frontend auth stores the access token in `localStorage`; production should prefer httpOnly cookies.
-- PDF and DOCX parsing are not included yet.
-- RAG responses are not streamed yet.
-- Vector index tuning such as HNSW or IVFFLAT is left as a future scaling task.
+- The local deployment scripts are optimized for one Windows user and one local database instance.
+- `.runtime/` contains machine-local PostgreSQL binaries and data; it is intentionally ignored by Git.
+- `EMBEDDING_PROVIDER=local` is deterministic and convenient for demos, but production semantic quality should use a real embedding provider and matching vector dimension migration.
+- DeepSeek uses `DEEPSEEK_API_KEY` and `DEEPSEEK_API_BASE`; system environment variables can override `.env` unless the local start script is used.

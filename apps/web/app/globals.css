@@ -4,8 +4,8 @@
 
 :root {
   color-scheme: light;
-  background: #f7f7f2;
-  color: #14213d;
+  background: #0b0d12;
+  color: #111827;
 }
 
 * {
@@ -16,10 +16,12 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(90deg, rgba(20, 33, 61, 0.035) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(20, 33, 61, 0.035) 1px, transparent 1px),
-    #f7f7f2;
-  background-size: 32px 32px;
+    radial-gradient(circle at 16% 4%, rgba(94, 106, 210, 0.22), transparent 28rem),
+    radial-gradient(circle at 82% 10%, rgba(15, 118, 110, 0.18), transparent 24rem),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    #0b0d12;
+  background-size: auto, auto, 36px 36px, 36px 36px, auto;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -28,4 +30,103 @@ button,
 input,
 textarea {
   font: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  text-wrap: pretty;
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    定义 AILib 工作台的全局交互细节，让按钮、输入框、滚动条和文本选中状态更统一。
+ * 2. 关键部分拆解：
+ *    - ::selection：让选中文本使用品牌色反馈。
+ *    - :focus-visible：为键盘用户提供清晰焦点环，不影响鼠标操作。
+ *    - ::-webkit-scrollbar：优化文档列表和回答区域的滚动条观感。
+ * 3. 重要概念与库：
+ *    - CSS focus-visible：只在键盘导航等需要时显示焦点样式。
+ *    - Tailwind 与全局 CSS 配合：组件用工具类，全局文件处理跨组件基础体验。
+ * 4. 潜在问题与改进建议：
+ *    - 滚动条样式主要覆盖 Chromium/WebKit；Firefox 可后续补充 scrollbar-color。
+ * 5. 修改指南：
+ *    - 新增全局交互样式时保持克制，避免覆盖组件局部状态类。
+ * ========================================================
+ */
+::selection {
+  background: rgba(94, 106, 210, 0.26);
+}
+
+:focus-visible {
+  outline: 2px solid rgba(94, 106, 210, 0.82);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.7);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    提供少量跨组件复用的高级视觉工具类，用于统一玻璃面板、深色面板和细腻悬停反馈。
+ * 2. 关键部分拆解：
+ *    - .app-glass：浅色玻璃卡片，适合表单、列表和 AI 面板。
+ *    - .app-dark-glass：深色玻璃卡片，适合品牌区、流程区和重点状态区。
+ *    - .interactive-lift：给可点击卡片提供轻微位移和阴影变化。
+ * 3. 重要概念与库：
+ *    - backdrop-filter：让面板和深色环境背景产生层次，不依赖额外图片资源。
+ *    - transition：统一 hover 反馈节奏，贴近 Linear/Raycast 式工具产品体验。
+ * 4. 潜在问题与改进建议：
+ *    - 如果后续增加暗色模式，可把这些颜色抽到 CSS 变量中集中切换。
+ * 5. 修改指南：
+ *    - 新增视觉工具类时保持用途单一，不要把布局规则和颜色规则混在一起。
+ * ========================================================
+ */
+.app-glass {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 18px 60px rgba(8, 9, 10, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(18px);
+}
+
+.app-dark-glass {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    rgba(15, 17, 24, 0.88);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+}
+
+.interactive-lift {
+  transition:
+    transform 160ms ease-out,
+    box-shadow 160ms ease-out,
+    border-color 160ms ease-out,
+    background-color 160ms ease-out;
+}
+
+.interactive-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 54px rgba(8, 9, 10, 0.18);
 }

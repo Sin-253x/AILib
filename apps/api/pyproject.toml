@@ -3,10 +3,25 @@ name = "ailib-api"
 version = "0.1.0"
 description = "FastAPI backend for AILib"
 requires-python = ">=3.11"
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    声明 FastAPI 后端运行时依赖，供本地虚拟环境和 Docker 镜像安装使用。
+# 2. 关键部分拆解：
+#    - fastapi 使用框架本体，不启用 standard extra，避免把 CLI/云部署工具带进生产镜像。
+#    - python-multipart 显式声明，用于文档上传接口解析 multipart/form-data。
+#    - uvicorn[standard] 保留生产 ASGI 服务能力，提供更完整的 HTTP/WebSocket 运行支持。
+# 3. 重要概念与库：
+#    - Python extras：类似 fastapi[standard] 会额外安装一批可选依赖，不一定适合最小生产镜像。
+#    - 显式依赖：业务真实需要的包直接写入 dependencies，便于 Docker 锁版本和排错。
+# 4. 潜在问题与改进建议：
+#    - 如果后续真的需要 fastapi CLI，可放入 dev extra，而不是生产运行依赖。
+# 5. 修改指南：
+#    - 新增运行时 import 的第三方库时，需要同步更新 apps/api/requirements.txt。
+# ========================================================
 dependencies = [
   "alembic>=1.13.3",
   "asyncpg>=0.30.0",
-  "fastapi[standard]>=0.115.0",
+  "fastapi>=0.115.0",
   "langchain-core>=0.3.35",
   "langchain-deepseek>=1.1.0",
   "langchain-openai>=0.3.35",
@@ -14,6 +29,7 @@ dependencies = [
   "pypdf>=5.1.0",
   "pydantic-settings>=2.7.0",
   "python-docx>=1.1.2",
+  "python-multipart>=0.0.18",
   "sqlalchemy[asyncio]>=2.0.36",
   "uvicorn[standard]>=0.34.0"
 ]

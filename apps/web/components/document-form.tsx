@@ -74,7 +74,7 @@ export function DocumentForm({ token, onSaved }: { token: string | null; onSaved
       <label className="block">
         <span className="text-sm font-medium text-slate-700">Title</span>
         <input
-          className="mt-1 h-10 w-full rounded-md border border-line px-3 outline-none focus:border-teal-700"
+          className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white/95 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Research note"
           required
@@ -84,7 +84,7 @@ export function DocumentForm({ token, onSaved }: { token: string | null; onSaved
       <label className="block">
         <span className="text-sm font-medium text-slate-700">Content</span>
         <textarea
-          className="mt-1 min-h-32 w-full resize-y rounded-md border border-line px-3 py-2 outline-none focus:border-teal-700"
+          className="mt-1 min-h-32 w-full resize-y rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
           onChange={(event) => setContent(event.target.value)}
           placeholder="Paste source text here"
           required
@@ -92,7 +92,7 @@ export function DocumentForm({ token, onSaved }: { token: string | null; onSaved
         />
       </label>
       <button
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+        className="interactive-lift inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
         disabled={status === "saving"}
         type="submit"
       >

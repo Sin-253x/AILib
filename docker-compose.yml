@@ -1,3 +1,18 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    为本地 Docker Compose 一键启动 AILib 的 PostgreSQL、FastAPI API 与 Next.js Web 服务。
+# 2. 关键部分拆解：
+#    - postgres 服务：使用 pgvector 镜像，提供语义向量存储能力。
+#    - api 服务：连接 Compose 内部数据库，并通过 env_file 读取 AI provider 密钥，避免系统环境变量覆盖。
+#    - web 服务：只从 apps/web 构建，避免 Docker 扫描后端缓存目录。
+# 3. 重要概念与库：
+#    - Docker Compose：用一个文件编排多容器开发环境。
+#    - pgvector：PostgreSQL 向量扩展，用于相似度检索。
+# 4. 潜在问题与改进建议：
+#    - 本地端口 3000/8000/5432 被占用时，启动前需要停止已有本地服务或改写端口变量。
+# 5. 修改指南：
+#    - 如果更换 AI 服务商，请同步修改 CHAT_PROVIDER、CHAT_MODEL 与对应 API_BASE/API_KEY。
+# ========================================================
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -21,17 +36,17 @@ services:
     build:
       context: ./apps/api
     container_name: ailib-api
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ailib}:${POSTGRES_PASSWORD:-ailib}@postgres:5432/${POSTGRES_DB:-ailib}
       API_HOST: 0.0.0.0
       API_PORT: 8000
-      CHAT_PROVIDER: ${CHAT_PROVIDER:-deepseek}
-      CHAT_MODEL: ${CHAT_MODEL:-deepseek-v4-pro}
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      DEEPSEEK_API_BASE: https://api.deepseek.com
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ailib_access_token}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -45,6 +60,7 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
     container_name: ailib-web
     environment:
+      API_SERVER_BASE_URL: http://api:8000
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
     ports:
       - "${WEB_PORT:-3000}:3000"

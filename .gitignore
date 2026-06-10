@@ -7,6 +7,7 @@ node_modules/
 out/
 dist/
 coverage/
+backups/
 playwright-report/
 test-results/
 
@@ -19,6 +20,7 @@ __pycache__/
 
 .logs/
 .runtime/
+deploy/.env.prod
 *.log
 .DS_Store
 Thumbs.db

@@ -1,0 +1,40 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    为 AILib 生产站点提供 HTTPS、静态压缩和 API/Web 反向代理。
+#
+# 2. 关键部分拆解：
+#    - {$AILIB_DOMAIN}：从 deploy/.env.prod 读取域名。
+#    - handle_path /api/*：把同域 /api 前缀去掉后转发给 FastAPI。
+#    - reverse_proxy web:3000：其余请求交给 Next.js。
+#
+# 3. 重要概念与库：
+#    - Caddy：自动申请和续期 Let's Encrypt HTTPS 证书。
+#    - 同域部署：前端和 API 共用域名，减少 CORS 和 Cookie 域问题。
+#
+# 4. 潜在问题与改进建议：
+#    - 生产环境应确保 DNS A 记录已指向服务器公网 IP，否则证书签发会失败。
+#
+# 5. 修改指南：
+#    - 如果改用子路径之外的 API 域名，需同步 NEXT_PUBLIC_API_BASE_URL 和 ALLOWED_ORIGINS。
+# ========================================================
+{
+	email {$ACME_EMAIL}
+}
+
+{$AILIB_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	reverse_proxy web:3000
+}

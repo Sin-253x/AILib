@@ -70,11 +70,18 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
   }
 
   return (
-    <div className="rounded-md border border-line bg-white p-4">
-      <div className="flex gap-2">
+    <div className="app-glass rounded-2xl p-4">
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Secure access</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">Enter workspace</h2>
+      </div>
+
+      <div className="grid rounded-xl border border-slate-200 bg-slate-100/70 p-1 sm:grid-cols-2">
         <button
-          className={`inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold ${
-            mode === "login" ? "border-ink bg-ink text-white" : "border-line text-ink"
+          className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+            mode === "login"
+              ? "bg-white text-ink shadow-sm"
+              : "text-slate-500 hover:bg-white/60 hover:text-ink"
           }`}
           onClick={() => setMode("login")}
           type="button"
@@ -83,8 +90,10 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           Login
         </button>
         <button
-          className={`inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold ${
-            mode === "register" ? "border-ink bg-ink text-white" : "border-line text-ink"
+          className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+            mode === "register"
+              ? "bg-white text-ink shadow-sm"
+              : "text-slate-500 hover:bg-white/60 hover:text-ink"
           }`}
           onClick={() => setMode("register")}
           type="button"
@@ -99,7 +108,7 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           <span className="text-sm font-medium text-slate-700">Email</span>
           <input
             autoComplete="email"
-            className="mt-1 h-10 w-full rounded-md border border-line px-3 outline-none focus:border-teal-700"
+            className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white/90 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"
             required
@@ -111,7 +120,7 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           <span className="text-sm font-medium text-slate-700">Password</span>
           <input
             autoComplete={mode === "login" ? "current-password" : "new-password"}
-            className="mt-1 h-10 w-full rounded-md border border-line px-3 outline-none focus:border-teal-700"
+            className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white/90 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
             minLength={8}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="At least 8 characters"
@@ -121,7 +130,7 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           />
         </label>
         <button
-          className="inline-flex h-10 w-full items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="interactive-lift inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-400"
           disabled={status === "submitting"}
           type="submit"
         >

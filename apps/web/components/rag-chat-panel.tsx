@@ -84,22 +84,32 @@ export function RagChatPanel({ token }: { token: string | null }) {
   }
 
   return (
-    <div className="rounded-md border border-line bg-white">
-      <div className="border-b border-line p-4">
-        <div className="flex items-center gap-2">
-          <MessageSquareText className="text-amber-700" size={20} aria-hidden="true" />
-          <h2 className="font-semibold text-ink">RAG Chat</h2>
+    <div className="app-glass overflow-hidden rounded-2xl">
+      <div className="border-b border-slate-200/80 bg-white/65 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-xl bg-[#111827] text-white shadow-sm">
+              <MessageSquareText size={18} aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="font-semibold text-ink">RAG Chat</h2>
+              <p className="text-xs text-slate-500">Streaming answer with source grounding</p>
+            </div>
+          </div>
+          <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] text-slate-500">
+            /chat/stream
+          </span>
         </div>
         <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
           <input
-            className="h-10 flex-1 rounded-md border border-line px-3 outline-none focus:border-amber-700"
+            className="h-11 flex-1 rounded-xl border border-slate-200 bg-white/95 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
             onChange={(event) => setQuestion(event.target.value)}
             placeholder="Ask your knowledge base"
             type="text"
             value={question}
           />
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="interactive-lift inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
             disabled={status === "asking"}
             type="submit"
           >
@@ -121,20 +131,20 @@ export function RagChatPanel({ token }: { token: string | null }) {
       <div className="p-4">
         {response ? (
           <div className="space-y-4">
-            <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-ink">
+            <div className="min-h-28 rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-4 text-sm leading-6 text-ink shadow-sm">
               {response.answer}
             </div>
             <div>
               <h3 className="text-sm font-semibold text-ink">Sources</h3>
-              <div className="mt-2 divide-y divide-line rounded-md border border-line">
+              <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 {response.sources.length > 0 ? (
                   response.sources.map((source, index) => (
-                    <article key={source.chunk_id} className="p-3">
+                    <article key={source.chunk_id} className="border-b border-slate-100 p-3 last:border-b-0">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-semibold text-ink">
                           [{index + 1}] {source.document_title}
                         </p>
-                        <span className="shrink-0 text-xs text-slate-500">
+                        <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
                           {Math.round(source.score * 100)}%
                         </span>
                       </div>
@@ -150,7 +160,12 @@ export function RagChatPanel({ token }: { token: string | null }) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-500">Ask a question to generate a cited answer.</p>
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-6 text-center">
+            <MessageSquareText className="mx-auto text-slate-400" size={28} aria-hidden="true" />
+            <p className="mt-3 text-sm text-slate-500">
+              Ask a question to generate a cited answer.
+            </p>
+          </div>
         )}
       </div>
     </div>

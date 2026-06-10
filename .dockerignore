@@ -1,0 +1,45 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    控制根目录 Docker 构建上下文，只把 Web 镜像构建真正需要的 monorepo 文件发送给 Docker。
+# 2. 关键部分拆解：
+#    - 排除缓存目录：避免 .pytest_cache、.next、node_modules 等本地生成物导致构建失败或镜像膨胀。
+#    - 排除敏感文件：避免 .env、生产环境变量和备份文件进入 Docker build context。
+#    - 排除后端本地目录：Web 镜像不需要 apps/api，避免 Windows 权限文件阻塞上下文发送。
+# 3. 重要概念与库：
+#    - Docker build context：Dockerfile 中 COPY 能访问的文件集合，越小越稳定、越安全。
+#    - .dockerignore：在发送构建上下文前过滤本地文件，语法接近 .gitignore。
+# 4. 潜在问题与改进建议：
+#    - 如果未来 Web 构建需要读取新的根目录配置文件，需要确认该文件没有被这里误排除。
+# 5. 修改指南：
+#    - 新增本地生成目录或密钥文件时，应优先加入本文件，避免进入镜像构建上下文。
+# ========================================================
+.git
+.gitignore
+.logs
+.runtime
+backups
+playwright-report
+test-results
+
+.env
+.env.*
+!*.example
+deploy/.env.prod
+apps/api/.env
+apps/api/.env.*
+
+node_modules
+apps/*/node_modules
+apps/web/.next
+apps/web/out
+apps/web/coverage
+
+apps/api/
+apps/api/**
+apps/api/.pytest_cache/
+apps/api/.pytest_cache/**
+**/.pytest_cache
+**/.pytest_cache/**
+**/__pycache__
+**/*.pyc
+**/.ruff_cache
