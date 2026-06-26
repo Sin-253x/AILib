@@ -1,0 +1,39 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    让阿里云轻量服务器从阿里云 ACR 拉取预构建的 AILib API/Web 镜像，避免在 2G 内存服务器上执行 Docker build。
+#
+# 2. 关键部分拆解：
+#    - image：通过 ACR_REGISTRY、ACR_NAMESPACE 和 AILIB_IMAGE_TAG 组合出镜像地址。
+#    - build: null：覆盖基础生产 Compose 中的 build 配置，表达该部署模式只拉镜像、不构建。
+#    - environment：保留同源 /api 和 HTTPS Cookie 的生产运行配置。
+#
+# 3. 重要概念与库：
+#    - 阿里云 ACR：国内镜像仓库，上海服务器拉取速度和稳定性明显优于 GitHub/GHCR。
+#    - Docker Compose override：在不删除原 docker-compose.prod.yml 的情况下替换 API/Web 镜像来源。
+#
+# 4. 潜在问题与改进建议：
+#    - 运行前必须先在服务器 docker login 到 ACR，否则私有仓库镜像会拉取失败。
+#    - 如果 tag 不存在，Compose 不会构建兜底，应回到 GitHub Actions 检查镜像推送是否成功。
+#
+# 5. 修改指南：
+#    - 更换镜像仓库时，只改 deploy/.env.prod 中的 ACR_REGISTRY、ACR_NAMESPACE 和 AILIB_IMAGE_TAG。
+# ========================================================
+services:
+  web:
+    image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/ailib-web:${AILIB_IMAGE_TAG:-latest}
+    build: null
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /api
+      API_SERVER_BASE_URL: http://api:8000
+
+  api:
+    image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/ailib-api:${AILIB_IMAGE_TAG:-latest}
+    build: null
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ALLOWED_ORIGINS: https://${AILIB_DOMAIN}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ailib_access_token}
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_SAMESITE: lax
+      API_HOST: 0.0.0.0
+      API_PORT: 8000

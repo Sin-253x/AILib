@@ -1,0 +1,52 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    为 AILib 私有自用部署构建轻量 Web 镜像，使用 Next.js dev server 运行，避免 Docker Desktop 中生产 trace 构建崩溃。
+#
+# 2. 关键部分拆解：
+#    - deps/install：使用 Yarn 4 安装 apps/web 的依赖。
+#    - COPY . .：复制前端源码到镜像内，供 next dev 启动。
+#    - CMD：监听 0.0.0.0:3000，让 Caddy 网关能在 Docker 内网访问 Web。
+#
+# 3. 重要概念与库：
+#    - Next.js dev server：适合个人本机自用和功能验证，不需要 build trace。
+#    - Corepack/Yarn：固定包管理器路径，减少 Windows Docker 内 npm 原生崩溃概率。
+#
+# 4. 潜在问题与改进建议：
+#    - dev server 不是公网生产模式；如果要公开网站，应使用 deploy/README_DEPLOY.md 的生产 HTTPS 方案。
+#    - 首次启动仍需安装 node_modules，后续会走 Docker 缓存。
+#
+# 5. 修改指南：
+#    - 如果未来 Docker Desktop 的 Next.js production build 稳定了，可把私有 compose 切回 apps/web/Dockerfile。
+# ========================================================
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV YARN_ENABLE_TELEMETRY=0
+ENV YARN_NODE_LINKER=node-modules
+ENV PORT=3000
+
+COPY package.json ./
+RUN corepack enable && corepack prepare yarn@4.9.4 --activate && yarn install --mode=skip-build
+
+COPY . .
+RUN mkdir -p public
+
+EXPOSE 3000
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    在容器中启动 Next.js 开发服务器，给私有 Caddy 网关提供页面服务。
+# 2. 关键部分拆解：
+#    - 0.0.0.0：允许同一 Docker 网络中的 gateway 容器访问。
+#    - ${PORT:-3000}：保留端口可配置能力，但默认符合 Caddyfile.private。
+# 3. 重要概念与库：
+#    - next dev：跳过生产构建 trace，适合本地私有运行。
+# 4. 潜在问题与改进建议：
+#    - 性能不如 next start，但个人知识库自用足够；公网部署不要使用本 Dockerfile。
+# 5. 修改指南：
+#    - 如需切换回生产模式，将 CMD 改为 next start 前必须先恢复 build 阶段。
+# ========================================================
+CMD ["sh", "-c", "node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p ${PORT:-3000}"]

@@ -152,6 +152,24 @@ Services:
 - API docs: http://localhost:8000/docs
 - PostgreSQL: localhost:5432
 
+## Private Self-Hosted Mode
+
+For the cheapest personal setup, run AILib on your own machine with Docker Compose and optionally expose it only through Tailscale or ZeroTier:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/private/Start-AILibPrivate.ps1 -OpenBrowser
+```
+
+For private-network devices:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/private/Start-AILibPrivate.ps1 -ExposePrivateNetwork
+```
+
+This mode stores `DEEPSEEK_API_KEY` in local `.env.private`, keeps PostgreSQL in a Docker volume, and exposes a same-origin `/api` through Caddy.
+
+Details: [Private Lightweight Deployment Guide](docs/PRIVATE_DEPLOYMENT.md)
+
 ## Deploy As A Personal Website
 
 For a long-running personal site on a VPS with a domain and HTTPS, use the production deployment files under `deploy/`:
@@ -171,6 +189,16 @@ https://kb.yourdomain.com
 The production deployment uses Caddy for automatic HTTPS, keeps PostgreSQL private inside Docker, and exposes FastAPI through same-origin `/api` to avoid CORS and Cookie domain issues.
 
 Details: [VPS Deployment Guide](deploy/README_DEPLOY.md)
+
+## Deploy On Low-Memory Mainland Servers
+
+For 2 GB-class Alibaba Cloud lightweight servers in mainland China, do not build images on the server. Build API/Web images in GitHub Actions, push them to Alibaba Cloud ACR, and let the server only pull and run:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.acr.yml up -d --no-build
+```
+
+Details: [Alibaba Cloud ACR Deployment Guide](docs/ACR_DEPLOYMENT.md)
 
 ## Run Locally
 
@@ -264,6 +292,8 @@ Authorization: Bearer <access_token>
 - [Demo Script](docs/DEMO_SCRIPT.md)
 - [Quality Checklist](docs/QUALITY_CHECKLIST.md)
 - [Local Deployment Guide](docs/LOCAL_DEPLOYMENT.md)
+- [Private Lightweight Deployment Guide](docs/PRIVATE_DEPLOYMENT.md)
+- [Alibaba Cloud ACR Deployment Guide](docs/ACR_DEPLOYMENT.md)
 - [VPS Deployment Guide](deploy/README_DEPLOY.md)
 - [Code Explanation Template](prompts/explain-code.md)
 - [Phase Plans](docs/superpowers/plans)

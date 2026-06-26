@@ -1,0 +1,89 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    在 GitHub Actions 中构建 AILib API/Web 镜像并推送到阿里云 ACR，让轻量服务器只负责拉取和运行。
+#
+# 2. 关键部分拆解：
+#    - workflow_dispatch：允许手动触发，并指定 image_tag。
+#    - docker/login-action：登录阿里云 ACR。
+#    - docker/build-push-action：分别构建 API 和 Web 镜像并推送。
+#
+# 3. 重要概念与库：
+#    - GitHub Actions Secrets：保存 ACR 用户名和密码，避免把凭据写入仓库。
+#    - Docker Buildx：GitHub 托管 runner 上的镜像构建器，比 2G 轻量服务器更适合构建前端。
+#
+# 4. 潜在问题与改进建议：
+#    - 如果 ACR 仓库是私有仓库，服务器必须 docker login 后才能拉取。
+#    - 如果 Web 构建失败，优先检查 Next.js 构建日志，而不是让轻量服务器重试。
+#
+# 5. 修改指南：
+#    - 如需自动在 main 分支 push 后构建，可取消 push 触发器注释或新增 branches 过滤。
+# ========================================================
+name: Build and Push AILib Images to ACR
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag to push"
+        required: false
+        default: "latest"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Image Tag
+        id: meta
+        shell: bash
+        run: |
+          # ======================== 代码解释 ========================
+          # 1. 整体功能：
+          #    统一生成本次推送镜像的 tag，手动输入为空时回退到 latest。
+          # 2. 关键部分拆解：
+          #    - workflow input：优先使用手动触发时填写的 image_tag。
+          #    - GITHUB_OUTPUT：把 tag 传给后续 Docker 构建步骤。
+          # 3. 重要概念与库：
+          #    - GitHub Actions output：跨步骤传递轻量键值数据。
+          # 4. 潜在问题与改进建议：
+          #    - 建议正式部署时使用短 commit SHA，而不是长期依赖 latest。
+          # 5. 修改指南：
+          #    - 如需自动 tag，可把 IMAGE_TAG 改为 ${GITHUB_SHA::12}。
+          # ========================================================
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$IMAGE_TAG" ]; then
+            IMAGE_TAG="latest"
+          fi
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Alibaba Cloud ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push API Image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          push: true
+          tags: ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/ailib-api:${{ steps.meta.outputs.image_tag }}
+
+      - name: Build and Push Web Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.web
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=/api
+          tags: ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/ailib-web:${{ steps.meta.outputs.image_tag }}

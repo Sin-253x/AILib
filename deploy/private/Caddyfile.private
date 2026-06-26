@@ -1,0 +1,32 @@
+# ======================== 配置解释 ========================
+# 1. 整体功能：
+#    为 AILib 私有部署提供单入口网关，浏览器只需要访问 Web 端口。
+#
+# 2. 关键部分拆解：
+#    - handle_path /api/*：去掉 /api 前缀后转发到 FastAPI，例如 /api/health -> /health。
+#    - handle：其余请求转发到 Next.js Web 服务。
+#    - header：关闭不必要的 Server 暴露，减少指纹信息。
+#
+# 3. 重要概念与库：
+#    - Caddy reverse_proxy：轻量反向代理，用于复刻 Vercel rewrite 的同源访问体验。
+#    - 同源 API：前端请求 /api，避免跨域和 Cookie 域名混乱。
+#
+# 4. 潜在问题与改进建议：
+#    - 当前配置使用 HTTP，适合 Tailscale/ZeroTier 私网；如要公网域名，应使用 deploy/ 下的生产 HTTPS 配置。
+#
+# 5. 修改指南：
+#    - 如需改 Web 或 API 容器端口，只修改本文件中的 reverse_proxy 目标和 compose 服务端口。
+# ========================================================
+:3000 {
+	header {
+		-Server
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

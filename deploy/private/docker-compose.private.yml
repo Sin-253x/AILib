@@ -1,0 +1,95 @@
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    在本机用 Docker Compose 启动 AILib 私有自用栈：Caddy 网关、Next.js、FastAPI、PostgreSQL + pgvector。
+#
+# 2. 关键部分拆解：
+#    - gateway：唯一暴露给浏览器的入口，负责 /api 反向代理和 Web 页面转发。
+#    - web：构建 Next.js，浏览器端 API 地址固定为同源 /api。
+#    - api：读取根目录 .env.private 中的 DeepSeek 密钥，并连接 Docker 内网 PostgreSQL。
+#    - postgres：使用 pgvector 镜像保存用户、文档、分块和向量。
+#
+# 3. 重要概念与库：
+#    - pgvector/pgvector:pg17：自带向量扩展的 PostgreSQL 镜像。
+#    - Docker 内网服务名：api 可以通过 postgres:5432 访问数据库，gateway 可以通过 web:3000/api:8000 转发。
+#    - Caddy：轻量反向代理，避免前端直接暴露 API 地址。
+#
+# 4. 潜在问题与改进建议：
+#    - 默认 PRIVATE_BIND_HOST=127.0.0.1，只能本机访问；需要手机或平板通过 Tailscale 访问时改为 0.0.0.0。
+#    - 如果修改 POSTGRES_PASSWORD 且已有 private-postgres-data 数据卷，旧数据库不会自动改密码。
+#
+# 5. 修改指南：
+#    - 修改端口优先改根目录 .env.private 的 WEB_PORT；修改模型或密钥只改 .env.private 的 CHAT_* 和 DEEPSEEK_*。
+# ========================================================
+name: ailib-private
+
+services:
+  gateway:
+    image: caddy:2.8-alpine
+    container_name: ailib-private-gateway
+    restart: unless-stopped
+    ports:
+      - "${PRIVATE_BIND_HOST:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./deploy/private/Caddyfile.private:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - web
+      - api
+
+  web:
+    build:
+      context: apps/web
+      dockerfile: ../../deploy/private/Dockerfile.web-dev
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /api
+    container_name: ailib-private-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /api
+      API_SERVER_BASE_URL: http://api:8000
+      API_PROXY_TARGET: http://api:8000
+    expose:
+      - "3000"
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: apps/api
+    container_name: ailib-private-api
+    restart: unless-stopped
+    env_file:
+      - .env.private
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ailib}:${POSTGRES_PASSWORD:-ailib}@postgres:5432/${POSTGRES_DB:-ailib}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ailib_access_token}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ailib-private-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.private
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ailib}
+      POSTGRES_USER: ${POSTGRES_USER:-ailib}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailib}
+    volumes:
+      - private-postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ailib} -d ${POSTGRES_DB:-ailib}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  private-postgres-data:
