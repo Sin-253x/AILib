@@ -73,7 +73,7 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
     <div className="app-glass rounded-2xl p-4">
       <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Secure access</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">Enter workspace</h2>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">登录 AILib</h2>
       </div>
 
       <div className="grid rounded-xl border border-slate-200 bg-slate-100/70 p-1 sm:grid-cols-2">
@@ -87,7 +87,7 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           type="button"
         >
           <LogIn size={16} aria-hidden="true" />
-          Login
+          登录
         </button>
         <button
           className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
@@ -99,7 +99,7 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           type="button"
         >
           <UserPlus size={16} aria-hidden="true" />
-          Register
+          注册
         </button>
       </div>
 
@@ -135,13 +135,13 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           type="submit"
         >
           {status === "submitting"
-            ? "Submitting"
+            ? "提交中"
             : mode === "login"
-              ? "Login to workspace"
-              : "Create account"}
+              ? "进入工作台"
+              : "创建账号"}
         </button>
         <p className={`min-h-5 text-sm ${status === "error" ? "text-berry" : "text-slate-500"}`}>
-          {status === "error" ? "Authentication failed. Check your email and password." : ""}
+          {status === "error" ? "认证失败，请检查邮箱和密码。" : ""}
         </p>
       </form>
     </div>

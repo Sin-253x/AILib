@@ -24,7 +24,10 @@ from pydantic import BaseModel, Field
 # ========================================================
 class HealthResponse(BaseModel):
     status: str
+    api: str
     database: str
+    rag_provider: str
+    rag_config: str
 
 
 class DocumentCreate(BaseModel):

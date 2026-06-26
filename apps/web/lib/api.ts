@@ -35,7 +35,10 @@ export type ApiDocument = {
 
 export type Health = {
   status: string;
+  api: string;
   database: string;
+  rag_provider: string;
+  rag_config: string;
 };
 
 export type ApiUser = {
@@ -90,7 +93,30 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
  *    - 修改 Docker 服务名或端口时，需要同步 docker-compose.yml 的 API_SERVER_BASE_URL。
  * ========================================================
  */
-const SERVER_API_BASE_URL = process.env.API_SERVER_BASE_URL ?? API_BASE_URL;
+const SERVER_API_BASE_URL =
+  process.env.API_SERVER_BASE_URL ??
+  process.env.API_PROXY_TARGET ??
+  (API_BASE_URL.startsWith("/") ? "http://localhost:8000" : API_BASE_URL);
+
+/**
+ * ======================== 代码解释 ========================
+ * 1. 整体功能：
+ *    拼接 API 根地址和接口路径，兼容绝对地址与 Vercel 同域 /api 代理。
+ * 2. 关键部分拆解：
+ *    - base.replace：去掉末尾斜杠，避免生成双斜杠。
+ *    - path：调用方始终传入以 / 开头的接口路径。
+ * 3. 重要概念与库：
+ *    - NEXT_PUBLIC_API_BASE_URL：浏览器端可见地址，生产环境推荐设置为 /api。
+ *    - API_SERVER_BASE_URL：Next.js 服务端渲染时使用的绝对 API 地址。
+ * 4. 潜在问题与改进建议：
+ *    - 如果 Railway API 地址变化，Vercel 的 API_PROXY_TARGET 和 API_SERVER_BASE_URL 都要同步。
+ * 5. 修改指南：
+ *    - 新增 API helper 时统一使用 buildApiUrl，不要手动拼接字符串。
+ * ========================================================
+ */
+function buildApiUrl(base: string, path: string): string {
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 /**
  * ======================== 代码解释 ========================
@@ -169,7 +195,7 @@ function credentialOptions(): RequestInit {
  */
 export async function getHealth(): Promise<Health | null> {
   try {
-    const response = await fetch(`${SERVER_API_BASE_URL}/health`, { cache: "no-store" });
+    const response = await fetch(buildApiUrl(SERVER_API_BASE_URL, "/health"), { cache: "no-store" });
     if (!response.ok) return null;
     return response.json();
   } catch {
@@ -198,7 +224,7 @@ export async function getHealth(): Promise<Health | null> {
  */
 export async function getDocuments(token?: string | null): Promise<ApiDocument[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/documents`, {
+    const response = await fetch(buildApiUrl(API_BASE_URL, "/documents"), {
       ...credentialOptions(),
       headers: authHeaders(token),
     });
@@ -229,7 +255,7 @@ export async function getDocuments(token?: string | null): Promise<ApiDocument[]
  * ========================================================
  */
 export async function registerUser(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/auth/register"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -261,7 +287,7 @@ export async function registerUser(email: string, password: string): Promise<Aut
  * ========================================================
  */
 export async function loginUser(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/auth/login"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -294,7 +320,7 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
  */
 export async function getCurrentUser(token?: string | null): Promise<ApiUser | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    const response = await fetch(buildApiUrl(API_BASE_URL, "/auth/me"), {
       ...credentialOptions(),
       headers: authHeaders(token),
     });
@@ -325,7 +351,7 @@ export async function getCurrentUser(token?: string | null): Promise<ApiUser | n
  * ========================================================
  */
 export async function logoutUser(): Promise<void> {
-  await fetch(`${API_BASE_URL}/auth/logout`, {
+  await fetch(buildApiUrl(API_BASE_URL, "/auth/logout"), {
     method: "POST",
     credentials: "include",
   });
@@ -354,7 +380,7 @@ export async function createDocument(
   token: string | null | undefined,
   payload: { title: string; content: string },
 ): Promise<ApiDocument> {
-  const response = await fetch(`${API_BASE_URL}/documents`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/documents"), {
     method: "POST",
     credentials: "include",
     headers: authHeaders(token),
@@ -394,7 +420,7 @@ export async function uploadDocument(
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/documents/upload"), {
     method: "POST",
     credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -432,7 +458,7 @@ export async function searchDocuments(
   query: string,
   limit = 5,
 ): Promise<SearchResult[]> {
-  const response = await fetch(`${API_BASE_URL}/search`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/search"), {
     method: "POST",
     credentials: "include",
     headers: authHeaders(token),
@@ -470,7 +496,7 @@ export async function chatWithDocuments(
   question: string,
   limit = 5,
 ): Promise<ChatResponse> {
-  const response = await fetch(`${API_BASE_URL}/chat`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/chat"), {
     method: "POST",
     credentials: "include",
     headers: authHeaders(token),
@@ -509,7 +535,7 @@ export async function streamChatWithDocuments(
   limit: number,
   handlers: StreamChatHandlers,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+  const response = await fetch(buildApiUrl(API_BASE_URL, "/chat/stream"), {
     method: "POST",
     credentials: "include",
     headers: authHeaders(token),

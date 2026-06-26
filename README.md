@@ -105,6 +105,8 @@ Important variables:
 - `OPENAI_API_KEY`: required for OpenAI embeddings or OpenAI chat.
 - `DEEPSEEK_API_KEY`: required for `CHAT_PROVIDER=deepseek`.
 - `NEXT_PUBLIC_API_BASE_URL`: API URL used by the Next.js app.
+- `API_SERVER_BASE_URL`: absolute API URL used by Next.js server rendering.
+- `API_PROXY_TARGET`: Railway API public URL used by Vercel `/api` rewrites.
 
 Provider examples:
 
@@ -116,6 +118,25 @@ DEEPSEEK_API_KEY=your_key
 
 ```env
 CHAT_PROVIDER=mock
+```
+
+Vercel + Railway deployment example:
+
+```env
+# Vercel Web service
+NEXT_PUBLIC_API_BASE_URL=/api
+API_SERVER_BASE_URL=https://your-api.up.railway.app
+API_PROXY_TARGET=https://your-api.up.railway.app
+
+# Railway API service
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+ALLOWED_ORIGINS=https://your-app.vercel.app
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SAMESITE=lax
+CHAT_PROVIDER=deepseek
+CHAT_MODEL=deepseek-v4-pro
+DEEPSEEK_API_KEY=your_key
+DEEPSEEK_API_BASE=https://api.deepseek.com
 ```
 
 ## Run With Docker

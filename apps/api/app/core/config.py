@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +48,32 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=150, alias="CHUNK_OVERLAP")
     chat_provider: str = Field(default="deepseek", alias="CHAT_PROVIDER")
     chat_model: str = Field(default="deepseek-v4-pro", alias="CHAT_MODEL")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        # ======================== 代码解释 ========================
+        # 1. 整体功能：
+        #    把部署平台常见的 PostgreSQL 连接串规范化为 SQLAlchemy asyncpg 可用格式。
+        # 2. 关键部分拆解：
+        #    - postgresql://：Railway 等平台常见的标准连接串前缀。
+        #    - postgres://：部分平台或旧配置可能使用的简写前缀。
+        #    - postgresql+asyncpg://：本项目异步 SQLAlchemy 引擎需要的驱动前缀。
+        # 3. 重要概念与库：
+        #    - Pydantic field_validator：在 Settings 初始化阶段集中处理环境变量兼容。
+        #    - asyncpg：FastAPI 后端实际使用的 PostgreSQL 异步驱动。
+        # 4. 潜在问题与改进建议：
+        #    - 该转换只处理 PostgreSQL 前缀，不把 SQLite 等其他数据库伪装为可用。
+        # 5. 修改指南：
+        #    - 如果未来更换数据库驱动，应同步修改这里和 tests/test_config.py 的断言。
+        # ========================================================
+        if value.startswith("postgresql+asyncpg://"):
+            return value
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if value.startswith("postgres://"):
+            return value.replace("postgres://", "postgresql+asyncpg://", 1)
+        return value
 
     @property
     def cors_origins(self) -> list[str]:

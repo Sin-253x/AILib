@@ -165,13 +165,16 @@ test("authenticated workspace supports documents, upload, search, and streaming 
   });
 
   await page.goto("/");
+  await expect(page.getByText("登录后进入你的文件目录与问答工作台。")).toBeVisible();
 
   await page.getByLabel("Email").fill("demo@ailib.dev");
   await page.getByLabel("Password").fill("password123");
-  await page.getByRole("button", { name: "Login to workspace" }).click();
-  await expect(page.getByText("Signed in as")).toBeVisible();
+  await page.getByRole("button", { name: "进入工作台" }).click();
+  await expect(page.getByText("个人工作台")).toBeVisible();
+  await expect(page.getByText("文件目录")).toBeVisible();
   await expect(page.getByText("Vector Notes").first()).toBeVisible();
 
+  await page.getByRole("button", { name: /上传/ }).click();
   await page.getByLabel("Title").fill("Manual RAG Note");
   await page.getByLabel("Content").fill("RAG answers should cite retrieved chunks.");
   await page.getByRole("button", { name: "Save document" }).click();
@@ -185,10 +188,12 @@ test("authenticated workspace supports documents, upload, search, and streaming 
   await page.getByRole("button", { name: "Upload document" }).click();
   await expect(page.getByText("Document uploaded")).toBeVisible();
 
+  await page.getByRole("button", { name: /语义搜索/ }).click();
   await page.getByPlaceholder("Ask what your documents discuss").fill("How are vectors stored?");
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText("94%")).toBeVisible();
 
+  await page.getByRole("button", { name: /问答/ }).click();
   await page.getByPlaceholder("Ask your knowledge base").fill("How does AILib answer?");
   await page.getByRole("button", { name: "Ask" }).click();
   await expect(page.getByText("AILib streams RAG answers with citations [1].")).toBeVisible();

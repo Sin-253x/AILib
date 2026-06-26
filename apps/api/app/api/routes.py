@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.future import select
 
 from app.api.deps import CurrentUserDep, SessionDep
@@ -156,6 +156,36 @@ def format_sse_event(event: str, data: object) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def get_rag_config_status(
+    *,
+    provider: str,
+    openai_api_key: str | None,
+    deepseek_api_key: str | None,
+) -> str:
+    # ======================== 代码解释 ========================
+    # 1. 整体功能：
+    #    把 RAG provider 和密钥配置转换成健康检查可展示的状态字符串。
+    # 2. 关键部分拆解：
+    #    - mock：离线演示 provider，不需要外部密钥。
+    #    - deepseek：只检查 DEEPSEEK_API_KEY，不回退使用 OPENAI_API_KEY。
+    #    - openai：只检查 OPENAI_API_KEY，不回退使用 DEEPSEEK_API_KEY。
+    # 3. 重要概念与库：
+    #    - provider-specific key：不同模型供应商的密钥必须隔离，避免部署误判。
+    #    - health check：前端可据此区分 API、数据库和 RAG 配置问题。
+    # 4. 潜在问题与改进建议：
+    #    - 这里不联网调用模型，只做配置完整性检查，避免健康检查产生额外费用。
+    # 5. 修改指南：
+    #    - 新增 provider 时应增加独立分支和 tests/test_routes.py 中的断言。
+    # ========================================================
+    if provider == "mock":
+        return "mock"
+    if provider == "deepseek":
+        return "ok" if deepseek_api_key else "missing_deepseek_key"
+    if provider == "openai":
+        return "ok" if openai_api_key else "missing_openai_key"
+    return "unsupported_provider"
+
+
 # ======================== 代码解释 ========================
 # 1. 整体功能：
 #    检查 API 服务和数据库连接是否可用。
@@ -236,15 +266,25 @@ async def find_relevant_chunks(
 
 @router.get("/health", response_model=HealthResponse)
 async def health(session: SessionDep) -> HealthResponse:
+    settings = get_settings()
+    database_status = "ok"
     try:
         await session.execute(text("SELECT 1"))
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database is unavailable",
-        ) from exc
+    except Exception:
+        database_status = "offline"
 
-    return HealthResponse(status="ok", database="ok")
+    rag_config = get_rag_config_status(
+        provider=settings.chat_provider,
+        openai_api_key=settings.openai_api_key,
+        deepseek_api_key=settings.deepseek_api_key,
+    )
+    return HealthResponse(
+        status="ok" if database_status == "ok" else "degraded",
+        api="ok",
+        database=database_status,
+        rag_provider=settings.chat_provider,
+        rag_config=rag_config,
+    )
 
 
 # ======================== 代码解释 ========================
@@ -271,11 +311,16 @@ async def health(session: SessionDep) -> HealthResponse:
 @router.get("/documents", response_model=list[DocumentRead])
 async def list_documents(session: SessionDep, current_user: CurrentUserDep) -> list[DocumentRead]:
     result = await session.execute(
-        select(Document)
+        select(Document, func.count(DocumentChunk.id).label("chunk_count"))
+        .outerjoin(DocumentChunk, DocumentChunk.document_id == Document.id)
         .where(Document.owner_id == current_user.id)
+        .group_by(Document.id)
         .order_by(Document.created_at.desc())
     )
-    return [to_document_read(document) for document in result.scalars()]
+    return [
+        to_document_read(document, chunk_count=int(chunk_count))
+        for document, chunk_count in result.all()
+    ]
 
 
 # ======================== 代码解释 ========================
@@ -312,10 +357,11 @@ async def create_document(
         owner_id=current_user.id,
     )
     add_document_chunks(document, current_user.id)
+    created_chunk_count = len(document.chunks)
     session.add(document)
     await session.commit()
     await session.refresh(document)
-    return to_document_read(document)
+    return to_document_read(document, chunk_count=created_chunk_count)
 
 
 # ======================== 代码解释 ========================
@@ -365,10 +411,11 @@ async def upload_document(
         source_size_bytes=parsed.source_size_bytes,
     )
     add_document_chunks(document, current_user.id)
+    created_chunk_count = len(document.chunks)
     session.add(document)
     await session.commit()
     await session.refresh(document)
-    return to_document_read(document)
+    return to_document_read(document, chunk_count=created_chunk_count)
 
 
 # ======================== 代码解释 ========================
@@ -541,7 +588,7 @@ async def stream_chat_with_documents(
 # 5. 修改指南：
 #    - 如果前端需要更多文档元数据，建议先在 DocumentRead 添加字段，再修改此函数。
 # ========================================================
-def to_document_read(document: Document) -> DocumentRead:
+def to_document_read(document: Document, *, chunk_count: int | None = None) -> DocumentRead:
     return DocumentRead(
         id=document.id,
         title=document.title,
@@ -552,5 +599,5 @@ def to_document_read(document: Document) -> DocumentRead:
         source_filename=document.source_filename,
         source_mime_type=document.source_mime_type,
         source_size_bytes=document.source_size_bytes,
-        chunk_count=None,
+        chunk_count=chunk_count,
     )

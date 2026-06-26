@@ -31,6 +31,7 @@ def test_set_auth_cookie_marks_token_http_only() -> None:
     set_cookie_header = response.headers["set-cookie"]
     assert "ailib_access_token=signed-token" in set_cookie_header
     assert "HttpOnly" in set_cookie_header
+    assert "Path=/" in set_cookie_header
     assert "SameSite=lax" in set_cookie_header
 
 
@@ -42,6 +43,7 @@ def test_clear_auth_cookie_expires_same_cookie_name() -> None:
     set_cookie_header = response.headers["set-cookie"]
     assert "ailib_access_token=" in set_cookie_header
     assert "Max-Age=0" in set_cookie_header
+    assert "Path=/" in set_cookie_header
 
 
 def test_resolve_request_token_prefers_bearer_over_cookie() -> None:
