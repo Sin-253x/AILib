@@ -1,52 +1,90 @@
 # ======================== 代码解释 ========================
 # 1. 整体功能：
-#    为生产部署构建 AILib Next.js Web 工作区镜像。
-#
+#    为生产部署构建 AILib 的 Next.js Web 镜像，默认适配中国大陆轻量服务器和低内存环境。
 # 2. 关键部分拆解：
-#    - deps 阶段：在 monorepo 根目录安装 npm workspace 依赖。
+#    - deps 阶段：使用 package-lock.json 和国内 npm 镜像安装 workspace 依赖。
 #    - builder 阶段：注入 NEXT_PUBLIC_API_BASE_URL 并执行 Next.js 生产构建。
-#    - runner 阶段：复制构建产物和依赖，用 npm workspace 启动 Web 服务。
-#
+#    - runner 阶段：只复制运行 Web 服务需要的构建产物和依赖。
 # 3. 重要概念与库：
-#    - Docker multi-stage build：把安装、构建和运行阶段分开，减少最终镜像复杂度。
-#    - npm workspaces：根 package.json 管理 apps/web 子应用。
-#
+#    - Docker multi-stage build：把依赖安装、构建和运行拆成多个阶段，减少最终镜像复杂度。
+#    - npm workspaces：根 package.json 管理 apps/web 子应用依赖。
+#    - npmmirror：在中国大陆服务器上通常比默认 npm registry 更稳定。
 # 4. 潜在问题与改进建议：
-#    - 当前 runner 保留完整 node_modules，镜像体积不是最小；后续可改 Next standalone 输出。
-#
+#    - 当前 runner 保留完整 node_modules，镜像体积不是最小；后续可改 Next standalone 输出进一步瘦身。
+#    - 修改前端依赖后必须同步提交 package-lock.json，否则 npm ci 会直接失败。
 # 5. 修改指南：
-#    - 如果 NEXT_PUBLIC_API_BASE_URL 改为同域相对路径，需同步 compose build args。
+#    - 更换基础镜像时优先改 NODE_IMAGE；更换 npm 镜像时优先改 NPM_CONFIG_REGISTRY。
 # ========================================================
-# 调试说明：Next.js 15 在当前 Docker Desktop 环境中使用 Node 22 构建时，曾在 build trace 阶段出现栈溢出或 SIGSEGV；
-# 这里固定到 Node 20 LTS，让云服务器部署和本地 Docker 验证使用同一套稳定运行时。
-FROM node:20-bookworm-slim AS deps
-WORKDIR /app
-# 安装说明：当前 Docker Desktop 环境中 npm install/npm ci 会触发 V8 原生崩溃；
-# 使用 Corepack 管理的 Yarn 4，并指定 node-modules 模式，既绕开 npm 安装路径，也保持 Next.js workspace 运行时兼容。
-ENV YARN_ENABLE_TELEMETRY=0
-ENV YARN_NODE_LINKER=node-modules
-COPY package.json ./
-COPY apps/web/package.json ./apps/web/package.json
-RUN corepack enable && corepack prepare yarn@4.9.4 --activate && yarn install --mode=skip-build
 
-# 构建说明：builder 阶段和 deps 阶段保持同一 Node 版本，避免原生依赖跨版本运行。
-FROM node:20-bookworm-slim AS builder
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    默认使用阿里云公共 Node 镜像，避免轻量服务器直接从 Docker Hub 拉取基础镜像时超时。
+# 2. 关键部分拆解：
+#    - NODE_IMAGE：可在 GitHub Actions 或本地 Docker Desktop 中通过 build-arg 覆盖。
+#    - Node 20 LTS：规避 Node 22 在部分 Docker 环境构建 Next.js 时出现的原生崩溃风险。
+# 3. 重要概念与库：
+#    - ARG before FROM：Docker 允许在 FROM 前声明构建参数，用于动态选择基础镜像。
+# 4. 潜在问题与改进建议：
+#    - 如果阿里云公共镜像同步异常，可传入 node:20-bookworm-slim 作为备用。
+# 5. 修改指南：
+#    - 升级 Node 时需要同时验证 npm ci、next build 和容器启动。
+# ========================================================
+ARG NODE_IMAGE=registry.cn-hangzhou.aliyuncs.com/library/node:20-bookworm-slim
+
+FROM ${NODE_IMAGE} AS deps
+WORKDIR /app
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    按锁文件安装 Web workspace 依赖，并把网络源切到国内 npm 镜像。
+# 2. 关键部分拆解：
+#    - NPM_CONFIG_REGISTRY：指定国内 npm registry，减少依赖下载失败。
+#    - NPM_CONFIG_FETCH_TIMEOUT：给慢速网络更长下载窗口。
+#    - npm ci：严格使用 package-lock.json，不进行无锁依赖解析。
+# 3. 重要概念与库：
+#    - package-lock.json：锁定依赖树，保证构建可复现并降低 resolver 开销。
+# 4. 潜在问题与改进建议：
+#    - 如果 lockfile 与 package.json 不一致，npm ci 会失败，这是预期保护。
+# 5. 修改指南：
+#    - 新增前端依赖时先在本地更新 package-lock.json，再重新构建镜像。
+# ========================================================
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV NPM_CONFIG_FETCH_TIMEOUT=120000
+ENV NPM_CONFIG_FETCH_RETRIES=5
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
+COPY package.json package-lock.json ./
+COPY apps/web/package.json ./apps/web/package.json
+RUN npm ci --workspaces --include-workspace-root --prefer-offline
+
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-# 构建说明：关闭 Next.js 匿名遥测，减少生产构建中的外部网络与非业务变量。
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    构建 Next.js 生产产物，让运行阶段可以直接用 next start 提供服务。
+# 2. 关键部分拆解：
+#    - NEXT_PUBLIC_API_BASE_URL：构建时写入浏览器端 API 基准路径，生产环境使用同域 /api。
+#    - next build apps/web：显式指定 Web 子应用目录，适配 monorepo 结构。
+# 3. 重要概念与库：
+#    - Next.js build：生成 .next 目录，包含服务端渲染和静态资源产物。
+# 4. 潜在问题与改进建议：
+#    - 低内存机器构建仍可能较慢；更稳定的方案是 GitHub Actions 构建后推送到 ACR。
+# 5. 修改指南：
+#    - 如果 API 路径变化，需要同步 compose build args 和运行时环境变量。
+# ========================================================
 RUN node apps/web/node_modules/next/dist/bin/next build apps/web
 
-# 运行说明：runner 阶段继续使用 Node 20 LTS，确保构建产物和生产运行时一致。
-FROM node:20-bookworm-slim AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-# 运行说明：生产容器不需要遥测上报，关闭后也便于离线或内网部署。
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
@@ -55,4 +93,18 @@ COPY --from=builder /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=builder /app/apps/web/.next ./apps/web/.next
 COPY --from=builder /app/apps/web/public ./apps/web/public
 EXPOSE 3000
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    在容器启动时运行 Next.js 生产服务，对 Docker 内网暴露 3000 端口。
+# 2. 关键部分拆解：
+#    - node apps/web/node_modules/next/dist/bin/next：直接调用本地安装的 Next CLI。
+#    - start apps/web：指定 monorepo 中的 Web 应用目录。
+# 3. 重要概念与库：
+#    - next start：服务 .next 生产构建产物，不会重新执行构建。
+# 4. 潜在问题与改进建议：
+#    - 如果 .next 缺失，说明 builder 阶段失败，不应在 runner 阶段临时构建。
+# 5. 修改指南：
+#    - 不要把 dev 命令用于生产容器，生产入口应保持 next start。
+# ========================================================
 CMD ["node", "apps/web/node_modules/next/dist/bin/next", "start", "apps/web"]

@@ -13,21 +13,51 @@
 # 5. 修改指南：
 #    - 如果依赖最低 Python 版本变化，需要同步 pyproject.toml、requirements.txt 和本基础镜像版本。
 # ========================================================
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    默认使用阿里云官方镜像仓库中的 Python 基础镜像，减少中国大陆服务器从 Docker Hub/GHCR 拉取镜像时的超时概率。
+# 2. 关键部分拆解：
+#    - PYTHON_IMAGE：允许 GitHub Actions 或其他环境通过 build-arg 切回官方镜像。
+#    - FROM ${PYTHON_IMAGE}：把基础镜像来源集中到一个可覆盖变量，便于不同部署环境调整。
+# 3. 重要概念与库：
+#    - Docker ARG before FROM：Docker 支持在 FROM 前声明构建参数，用于动态选择基础镜像。
+# 4. 潜在问题与改进建议：
+#    - 如果阿里云公共镜像暂时不可用，可构建时传入 python:3.11-slim-bookworm 作为备用镜像。
+# 5. 修改指南：
+#    - 更换镜像源时只改 PYTHON_IMAGE 默认值，不要改下方业务启动命令。
+# ========================================================
+ARG PYTHON_IMAGE=registry.cn-hangzhou.aliyuncs.com/library/python:3.11-slim-bookworm
+FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV UV_SYSTEM_PYTHON=1
-ENV UV_LINK_MODE=copy
+ENV PIP_DEFAULT_TIMEOUT=120
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 COPY pyproject.toml requirements.txt ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 
-RUN uv pip install --system --no-cache --no-deps -r requirements.txt
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    使用阿里云 PyPI 镜像安装已锁定的 API 运行时依赖，避免服务器访问 pypi.org 时长时间卡死。
+# 2. 关键部分拆解：
+#    - --no-cache-dir：不在镜像层中保留 pip 缓存，控制最终镜像体积。
+#    - --no-deps：requirements.txt 已经锁定完整依赖树，pip 不再重新解析传递依赖。
+#    - --timeout 120：给国内轻量服务器更宽松的下载窗口，降低大 wheel 下载中断概率。
+# 3. 重要概念与库：
+#    - 阿里云 PyPI mirror：在中国大陆网络环境下通常比默认 PyPI 更稳定。
+# 4. 潜在问题与改进建议：
+#    - 如果某个包镜像同步滞后，可临时把 PIP_INDEX_URL 改回官方源或清华源重试。
+# 5. 修改指南：
+#    - 新增依赖时继续先更新 requirements.txt，不要在 Dockerfile 中单独追加 pip install。
+# ========================================================
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+RUN pip install --no-cache-dir --no-deps --timeout 120 -r requirements.txt
 
 EXPOSE 8000
 
