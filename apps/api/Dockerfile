@@ -15,18 +15,18 @@
 # ========================================================
 # ======================== 代码解释 ========================
 # 1. 整体功能：
-#    默认使用阿里云官方镜像仓库中的 Python 基础镜像，减少中国大陆服务器从 Docker Hub/GHCR 拉取镜像时的超时概率。
+#    默认使用 DaoCloud 加速的 Python 基础镜像，减少中国大陆服务器从 Docker Hub/GHCR 拉取镜像时的超时概率。
 # 2. 关键部分拆解：
 #    - PYTHON_IMAGE：允许 GitHub Actions 或其他环境通过 build-arg 切回官方镜像。
 #    - FROM ${PYTHON_IMAGE}：把基础镜像来源集中到一个可覆盖变量，便于不同部署环境调整。
 # 3. 重要概念与库：
 #    - Docker ARG before FROM：Docker 支持在 FROM 前声明构建参数，用于动态选择基础镜像。
 # 4. 潜在问题与改进建议：
-#    - 如果阿里云公共镜像暂时不可用，可构建时传入 python:3.11-slim-bookworm 作为备用镜像。
+#    - 如果 DaoCloud 镜像暂时不可用，可构建时传入 python:3.11-slim-bookworm 或其他可达镜像作为备用。
 # 5. 修改指南：
 #    - 更换镜像源时只改 PYTHON_IMAGE 默认值，不要改下方业务启动命令。
 # ========================================================
-ARG PYTHON_IMAGE=registry.cn-hangzhou.aliyuncs.com/library/python:3.11-slim-bookworm
+ARG PYTHON_IMAGE=docker.m.daocloud.io/python:3.11-slim-bookworm
 FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
