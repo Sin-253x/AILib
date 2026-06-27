@@ -17,6 +17,7 @@
 #
 # 5. 修改指南：
 #    - 如果换域名，修改 deploy/.env.prod 中的 AILIB_DOMAIN 后重新 up -d --build。
+#    - 如果备案完成前需要用 IP 临时访问，设置 AILIB_IP_HOST 和 AUTH_COOKIE_SECURE=false 后重新创建 api/caddy。
 # ========================================================
 name: ailib-prod
 
@@ -65,9 +66,11 @@ services:
       - ./.env.prod
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      ALLOWED_ORIGINS: https://${AILIB_DOMAIN}
+      # 代码解释：CORS 来源由 .env.prod 显式维护；备案放行前可加入 http://服务器公网IP。
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://${AILIB_DOMAIN}}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ailib_access_token}
-      AUTH_COOKIE_SECURE: "true"
+      # 代码解释：生产默认使用 Secure Cookie；临时 HTTP IP 访问时可在 .env.prod 中显式设为 false。
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       AUTH_COOKIE_SAMESITE: lax
       API_HOST: 0.0.0.0
       API_PORT: 8000

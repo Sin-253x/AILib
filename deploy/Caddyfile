@@ -1,21 +1,25 @@
 # ======================== 代码解释 ========================
 # 1. 整体功能：
-#    为 AILib 生产站点提供 HTTPS、静态压缩和 API/Web 反向代理。
+#    为 AILib 生产站点提供 HTTPS 域名入口、临时 HTTP IP 入口、静态压缩和 API/Web 反向代理。
 #
 # 2. 关键部分拆解：
 #    - {$AILIB_DOMAIN}：从 deploy/.env.prod 读取域名。
+#    - http://{$AILIB_IP_HOST:localhost}：为备案放行前提供 IP 访问入口，避免 IP 被自动重定向到无法签发证书的 HTTPS。
 #    - handle_path /api/*：把同域 /api 前缀去掉后转发给 FastAPI。
 #    - reverse_proxy web:3000：其余请求交给 Next.js。
 #
 # 3. 重要概念与库：
 #    - Caddy：自动申请和续期 Let's Encrypt HTTPS 证书。
 #    - 同域部署：前端和 API 共用域名，减少 CORS 和 Cookie 域问题。
+#    - HTTP IP 入口：只作为备案完成前的临时方案，不提供公网传输加密。
 #
 # 4. 潜在问题与改进建议：
 #    - 生产环境应确保 DNS A 记录已指向服务器公网 IP，否则证书签发会失败。
+#    - IP 入口不适合长期保存敏感资料；备案放行后应优先使用 HTTPS 域名访问。
 #
 # 5. 修改指南：
 #    - 如果改用子路径之外的 API 域名，需同步 NEXT_PUBLIC_API_BASE_URL 和 ALLOWED_ORIGINS。
+#    - 如果服务器公网 IP 变化，需同步修改 deploy/.env.prod 中的 AILIB_IP_HOST。
 # ========================================================
 {
 	email {$ACME_EMAIL}
@@ -26,6 +30,44 @@
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	reverse_proxy web:3000
+}
+
+# ======================== 代码解释 ========================
+# 1. 整体功能：
+#    提供备案完成前的临时 IP 访问入口，让用户可以通过 http://服务器公网IP 使用 AILib。
+#
+# 2. 关键部分拆解：
+#    - http://{$AILIB_IP_HOST:localhost}：明确禁用该入口的自动 HTTPS，避免 IP 访问被重定向到证书握手失败的 https://IP。
+#    - header：复用基础安全响应头，但不设置 HSTS，因为 HSTS 只适合稳定 HTTPS 域名。
+#    - handle_path /api/* 与 reverse_proxy web:3000：保持和正式域名入口一致的前后端路由。
+#
+# 3. 重要概念与库：
+#    - Caddy site address：以 http:// 开头的站点地址只监听明文 HTTP。
+#    - 反向代理：Caddy 仍然把 /api 转发给 FastAPI，把页面请求转发给 Next.js。
+#
+# 4. 潜在问题与改进建议：
+#    - HTTP 没有传输加密，登录密码和 Cookie 会明文经过网络；只建议个人临时测试使用。
+#    - 备案完成后应改回 https://{$AILIB_DOMAIN} 作为主要入口。
+#
+# 5. 修改指南：
+#    - 临时使用 IP 时，在 deploy/.env.prod 中设置 AILIB_IP_HOST=服务器公网IP。
+#    - 不需要 IP 入口时，可以删除本块或把 AILIB_IP_HOST 留空使用默认 localhost。
+# ========================================================
+http://{$AILIB_IP_HOST:localhost} {
+	encode zstd gzip
+
+	header {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
