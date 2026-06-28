@@ -165,37 +165,37 @@ test("authenticated workspace supports documents, upload, search, and streaming 
   });
 
   await page.goto("/");
-  await expect(page.getByText("登录后进入你的文件目录与问答工作台。")).toBeVisible();
+  await expect(page.getByText("登录 AILib")).toBeVisible();
 
-  await page.getByLabel("Email").fill("demo@ailib.dev");
-  await page.getByLabel("Password").fill("password123");
+  await page.getByLabel("邮箱").fill("demo@ailib.dev");
+  await page.getByLabel("密码").fill("password123");
   await page.getByRole("button", { name: "进入工作台" }).click();
   await expect(page.getByText("个人工作台")).toBeVisible();
   await expect(page.getByText("文件目录")).toBeVisible();
   await expect(page.getByText("Vector Notes").first()).toBeVisible();
 
   await page.getByRole("button", { name: /上传/ }).click();
-  await page.getByLabel("Title").fill("Manual RAG Note");
-  await page.getByLabel("Content").fill("RAG answers should cite retrieved chunks.");
-  await page.getByRole("button", { name: "Save document" }).click();
-  await expect(page.getByText("Document saved")).toBeVisible();
+  await page.getByLabel("标题").fill("Manual RAG Note");
+  await page.getByLabel("正文").fill("RAG answers should cite retrieved chunks.");
+  await page.getByRole("button", { name: "保存到知识库" }).click();
+  await expect(page.getByText("文档已保存并开始索引。")).toBeVisible();
 
   await page.locator('input[type="file"]').setInputFiles({
     name: "upload.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF mocked upload"),
   });
-  await page.getByRole("button", { name: "Upload document" }).click();
-  await expect(page.getByText("Document uploaded")).toBeVisible();
+  await page.getByRole("button", { name: "上传并索引" }).click();
+  await expect(page.getByText("文件已上传，系统会自动解析并生成向量索引。")).toBeVisible();
 
   await page.getByRole("button", { name: /语义搜索/ }).click();
-  await page.getByPlaceholder("Ask what your documents discuss").fill("How are vectors stored?");
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByPlaceholder("搜索概念、结论或问题，例如：部署方案有哪些风险？").fill("How are vectors stored?");
+  await page.getByRole("button", { name: "开始搜索" }).click();
   await expect(page.getByText("94%")).toBeVisible();
 
   await page.getByRole("button", { name: /问答/ }).click();
-  await page.getByPlaceholder("Ask your knowledge base").fill("How does AILib answer?");
-  await page.getByRole("button", { name: "Ask" }).click();
+  await page.getByPlaceholder("向你的知识库提问，例如：这份文档的核心结论是什么？").fill("How does AILib answer?");
+  await page.getByRole("button", { name: "发送问题" }).click();
   await expect(page.getByText("AILib streams RAG answers with citations [1].")).toBeVisible();
   await expect(page.getByText("[1] Vector Notes")).toBeVisible();
 });

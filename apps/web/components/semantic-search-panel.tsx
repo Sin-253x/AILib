@@ -67,47 +67,47 @@ export function SemanticSearchPanel({ token }: { token: string | null }) {
   }
 
   return (
-    <div className="app-glass overflow-hidden rounded-2xl">
-      <div className="border-b border-slate-200/80 bg-white/65 p-4">
+    <div className="app-card overflow-hidden">
+      <div className="border-b border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-teal-50 text-teal-700">
+            <span className="grid size-10 place-items-center rounded-xl bg-accent-soft text-accent">
               <Search size={18} aria-hidden="true" />
             </span>
             <div>
-              <h2 className="font-semibold text-ink">Semantic Search</h2>
-              <p className="text-xs text-slate-500">Inspect vector matches before asking</p>
+              <h2 className="font-semibold text-ink">语义搜索</h2>
+              <p className="text-sm text-slate-500">先查看最相关的向量片段，再决定是否继续追问。</p>
             </div>
           </div>
-          <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] text-slate-500">
-            top 5
+          <span className="hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline-flex">
+            返回前 5 条
           </span>
         </div>
         <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
           <input
-            className="h-11 flex-1 rounded-xl border border-slate-200 bg-white/95 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:shadow-[0_0_0_4px_rgba(15,118,110,0.12)]"
+            className="app-input flex-1"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Ask what your documents discuss"
+            placeholder="搜索概念、结论或问题，例如：部署方案有哪些风险？"
             type="search"
             value={query}
           />
           <button
-            className="interactive-lift inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="app-button-primary interactive-lift shrink-0"
             disabled={status === "searching"}
             type="submit"
           >
             <Search size={16} aria-hidden="true" />
-            {status === "searching" ? "Searching" : "Search"}
+            {status === "searching" ? "检索中" : "开始搜索"}
           </button>
         </form>
         <p className={`mt-2 min-h-5 text-sm ${status === "error" ? "text-berry" : "text-slate-500"}`}>
           {status === "error"
-            ? "Search failed. Check the API and embedding provider settings."
-            : "Search uses document chunks generated when documents are saved or uploaded."}
+            ? "搜索失败，请检查 API、Embedding 配置和数据库连接。"
+            : "搜索会使用文档保存或上传时生成的文档片段。"}
         </p>
       </div>
 
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-slate-100 bg-white">
         {results.length > 0 ? (
           results.map((result) => (
             <article key={result.chunk_id} className="p-4 transition hover:bg-slate-50/70">
@@ -121,16 +121,16 @@ export function SemanticSearchPanel({ token }: { token: string | null }) {
                 </span>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                Chunk {result.chunk_index + 1}
+                片段 {result.chunk_index + 1}
                 {result.source_filename ? ` · ${result.source_filename}` : ""}
               </p>
             </article>
           ))
         ) : (
-          <div className="p-5 text-sm text-slate-500">
+          <div className="p-6 text-sm leading-6 text-slate-500">
             {status === "searched"
-              ? "No semantic matches yet."
-              : "Run a query to see matching chunks."}
+              ? "暂未找到相关片段，请换一个更具体的中文问题或关键词。"
+              : "输入问题后，这里会展示与你的知识库最相关的文档片段。"}
           </div>
         )}
       </div>

@@ -4,8 +4,21 @@
 
 :root {
   color-scheme: light;
-  background: #0b0d12;
-  color: #111827;
+  background: #f8fafc;
+  color: #0f172a;
+  --color-page: #f8fafc;
+  --color-page-soft: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-text: #0f172a;
+  --color-muted: #64748b;
+  --color-primary: #1e3a8a;
+  --color-primary-strong: #172554;
+  --color-accent: #0d9488;
+  --color-sky: #0284c7;
+  --shadow-soft: 0 18px 48px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -16,14 +29,17 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 16% 4%, rgba(94, 106, 210, 0.22), transparent 28rem),
-    radial-gradient(circle at 82% 10%, rgba(15, 118, 110, 0.18), transparent 24rem),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    #0b0d12;
-  background-size: auto, auto, 36px 36px, 36px 36px, auto;
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.98)),
+    var(--color-page);
+  color: var(--color-text);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
@@ -42,26 +58,26 @@ p {
 /**
  * ======================== 代码解释 ========================
  * 1. 整体功能：
- *    定义 AILib 工作台的全局交互细节，让按钮、输入框、滚动条和文本选中状态更统一。
+ *    定义 AILib 的全局设计令牌与基础排版，让登录页和工作台共享同一套浅色高级视觉语言。
  * 2. 关键部分拆解：
- *    - ::selection：让选中文本使用品牌色反馈。
- *    - :focus-visible：为键盘用户提供清晰焦点环，不影响鼠标操作。
- *    - ::-webkit-scrollbar：优化文档列表和回答区域的滚动条观感。
+ *    - :root：集中保存页面背景、文字、边框、品牌色和阴影 token。
+ *    - body：使用 Inter + 中文系统字体栈，并设置 16px 基础字号与舒适行高。
+ *    - focus/selection/scrollbar：统一键盘焦点、选区和滚动条反馈。
  * 3. 重要概念与库：
- *    - CSS focus-visible：只在键盘导航等需要时显示焦点样式。
- *    - Tailwind 与全局 CSS 配合：组件用工具类，全局文件处理跨组件基础体验。
+ *    - CSS 变量：方便 Tailwind 工具类之外的跨组件视觉一致性。
+ *    - WCAG 对比度：深色正文配浅色背景，适合长时间知识工作。
  * 4. 潜在问题与改进建议：
- *    - 滚动条样式主要覆盖 Chromium/WebKit；Firefox 可后续补充 scrollbar-color。
+ *    - 如果后续加入暗色模式，应把这些变量切换放到 data-theme 上。
  * 5. 修改指南：
- *    - 新增全局交互样式时保持克制，避免覆盖组件局部状态类。
+ *    - 新增颜色和阴影时优先补充变量，再在组件中复用，避免零散硬编码。
  * ========================================================
  */
 ::selection {
-  background: rgba(94, 106, 210, 0.26);
+  background: rgba(13, 148, 136, 0.2);
 }
 
 :focus-visible {
-  outline: 2px solid rgba(94, 106, 210, 0.82);
+  outline: 2px solid rgba(2, 132, 199, 0.75);
   outline-offset: 2px;
 }
 
@@ -71,7 +87,7 @@ p {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.7);
+  background: rgba(100, 116, 139, 0.45);
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
@@ -84,49 +100,72 @@ p {
 /**
  * ======================== 代码解释 ========================
  * 1. 整体功能：
- *    提供少量跨组件复用的高级视觉工具类，用于统一玻璃面板、深色面板和细腻悬停反馈。
+ *    提供跨组件复用的产品级视觉工具类，统一卡片、按钮、输入框、状态徽标和悬停反馈。
  * 2. 关键部分拆解：
- *    - .app-glass：浅色玻璃卡片，适合表单、列表和 AI 面板。
- *    - .app-dark-glass：深色玻璃卡片，适合品牌区、流程区和重点状态区。
- *    - .interactive-lift：给可点击卡片提供轻微位移和阴影变化。
+ *    - .app-card：白色卡片容器，使用柔和边框和阴影建立层级。
+ *    - .app-input：统一输入框尺寸、边框、焦点和占位符观感。
+ *    - .app-button-*：区分主按钮、次按钮和强调按钮。
+ *    - .interactive-lift：给可点击元素提供克制的 hover 位移。
  * 3. 重要概念与库：
- *    - backdrop-filter：让面板和深色环境背景产生层次，不依赖额外图片资源。
- *    - transition：统一 hover 反馈节奏，贴近 Linear/Raycast 式工具产品体验。
+ *    - Tailwind @apply：把高频样式沉淀为少量语义类，减少组件重复。
+ *    - transition：统一交互节奏，让界面显得稳定且细腻。
  * 4. 潜在问题与改进建议：
- *    - 如果后续增加暗色模式，可把这些颜色抽到 CSS 变量中集中切换。
+ *    - 语义类不应膨胀成完整组件系统；复杂布局仍放在 React 组件中。
  * 5. 修改指南：
- *    - 新增视觉工具类时保持用途单一，不要把布局规则和颜色规则混在一起。
+ *    - 新增工具类时保持单一职责，避免把业务布局写进全局 CSS。
  * ========================================================
  */
-.app-glass {
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 18px 60px rgba(8, 9, 10, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(18px);
-}
+@layer components {
+  .app-card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
 
-.app-dark-glass {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-    rgba(15, 17, 24, 0.88);
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-}
+  .app-card-soft {
+    @apply rounded-2xl border border-slate-200 bg-slate-50/80 shadow-sm;
+  }
 
-.interactive-lift {
-  transition:
-    transform 160ms ease-out,
-    box-shadow 160ms ease-out,
-    border-color 160ms ease-out,
-    background-color 160ms ease-out;
-}
+  .app-input {
+    @apply min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-sky-600 focus:shadow-[0_0_0_4px_rgba(2,132,199,0.12)];
+  }
 
-.interactive-lift:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 54px rgba(8, 9, 10, 0.18);
+  .app-textarea {
+    @apply min-h-36 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-sky-600 focus:shadow-[0_0_0_4px_rgba(2,132,199,0.12)];
+  }
+
+  .app-button-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-900 px-4 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-blue-950 disabled:cursor-not-allowed disabled:bg-slate-400;
+  }
+
+  .app-button-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition duration-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-400;
+  }
+
+  .app-button-accent {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-400;
+  }
+
+  .app-label {
+    @apply text-sm font-medium text-slate-700;
+  }
+
+  .app-help {
+    @apply text-sm leading-6 text-slate-500;
+  }
+
+  .app-kicker {
+    @apply text-xs font-semibold uppercase tracking-[0.12em] text-teal-700;
+  }
+
+  .interactive-lift {
+    transition:
+      transform 180ms ease-out,
+      box-shadow 180ms ease-out,
+      border-color 180ms ease-out,
+      background-color 180ms ease-out;
+  }
+
+  .interactive-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+  }
 }

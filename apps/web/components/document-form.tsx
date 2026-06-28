@@ -8,7 +8,7 @@ import { createDocument } from "@/lib/api";
 /**
  * ======================== 代码解释 ========================
  * 1. 整体功能：
- *    提供 starter 文档创建表单，把标题和正文提交到 FastAPI。
+ *    提供手动添加文档表单，把标题和正文提交到 FastAPI 并生成知识库索引。
  *
  * 2. 关键部分拆解：
  *    - title/content：保存用户输入。
@@ -20,8 +20,7 @@ import { createDocument } from "@/lib/api";
  *    - httpOnly Cookie：浏览器默认把当前用户身份传给后端。
  *
  * 4. 潜在问题与改进建议：
- *    - 当前只是文本创建；上传阶段应改为文件选择和上传进度。
- *    - 当前只是文本创建；上传阶段应改为文件选择和上传进度。
+ *    - 当前错误提示不区分原因；后续可解析后端错误详情。
  *
  * 5. 修改指南：
  *    - 如果要扩展表单字段，建议先增加 state，再同步 createDocument 和后端 schema。
@@ -70,34 +69,34 @@ export function DocumentForm({ token, onSaved }: { token: string | null; onSaved
   }
 
   return (
-    <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+    <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Title</span>
+        <span className="app-label">标题</span>
         <input
-          className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white/95 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
+          className="app-input mt-1"
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Research note"
+          placeholder="例如：论文阅读笔记"
           required
           value={title}
         />
       </label>
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Content</span>
+        <span className="app-label">正文</span>
         <textarea
-          className="mt-1 min-h-32 w-full resize-y rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
+          className="app-textarea mt-1"
           onChange={(event) => setContent(event.target.value)}
-          placeholder="Paste source text here"
+          placeholder="粘贴需要进入知识库的内容，保存后会自动切分并写入 Vector Store。"
           required
           value={content}
         />
       </label>
       <button
-        className="interactive-lift inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
+        className="app-button-primary interactive-lift w-full"
         disabled={status === "saving"}
         type="submit"
       >
         <FilePlus2 size={16} aria-hidden="true" />
-        {status === "saving" ? "Saving" : "Save document"}
+        {status === "saving" ? "正在保存" : "保存到知识库"}
       </button>
       <p
         className={`min-h-5 text-sm ${
@@ -105,9 +104,9 @@ export function DocumentForm({ token, onSaved }: { token: string | null; onSaved
         }`}
       >
         {status === "error"
-          ? "API is unavailable"
+          ? "保存失败，请检查 API 与数据库状态。"
           : status === "saved"
-            ? "Document saved"
+            ? "文档已保存并开始索引。"
             : ""}
       </p>
     </form>

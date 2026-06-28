@@ -74,23 +74,23 @@ export function DocumentUploadForm({
   }
 
   return (
-    <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+    <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Upload file</span>
+        <span className="app-label">选择文件</span>
         <input
           accept=".txt,.md,.markdown,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          className="mt-1 w-full rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-sm outline-none transition file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ink focus:border-[#5E6AD2] focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition duration-200 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ink hover:border-slate-300 focus:border-sky-600 focus:shadow-[0_0_0_4px_rgba(2,132,199,0.12)]"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           type="file"
         />
       </label>
       <button
-        className="interactive-lift inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
+        className="app-button-accent interactive-lift w-full"
         disabled={file === null || status === "uploading"}
         type="submit"
       >
         <Upload size={16} aria-hidden="true" />
-        {status === "uploading" ? "Uploading" : "Upload document"}
+        {status === "uploading" ? "正在上传" : "上传并索引"}
       </button>
       <p
         className={`min-h-5 text-sm ${
@@ -102,10 +102,10 @@ export function DocumentUploadForm({
         }`}
       >
         {status === "error"
-          ? "Upload failed. Use a TXT or Markdown file under the size limit."
+          ? "上传失败，请确认文件格式、大小限制和 API 状态。"
           : status === "uploaded"
-            ? "Document uploaded"
-            : "Supported: .txt, .md, .markdown, .pdf, .docx"}
+            ? "文件已上传，系统会自动解析并生成向量索引。"
+            : "支持 .txt、.md、.markdown、.pdf、.docx。"}
       </p>
     </form>
   );

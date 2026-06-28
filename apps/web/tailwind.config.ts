@@ -3,18 +3,19 @@ import type { Config } from "tailwindcss";
 /**
  * ======================== 代码解释 ========================
  * 1. 整体功能：
- *    配置 AILib 前端使用的 Tailwind 扫描路径和主题色。
+ *    配置 AILib 前端使用的 Tailwind 扫描路径、主题色、字体和阴影 token。
  *
  * 2. 关键部分拆解：
  *    - content：声明 Tailwind 需要扫描的源码路径。
- *    - theme.extend.colors：定义项目 UI 的语义颜色。
+ *    - theme.extend.colors：定义项目 UI 的语义颜色，匹配浅色专业工作台风格。
+ *    - theme.extend.fontFamily/boxShadow：统一中文字体栈和柔和阴影。
  *
  * 3. 重要概念与库：
  *    - Tailwind CSS：通过工具类快速构建一致的界面样式。
  *    - Config：为 Tailwind 配置提供类型检查。
  *
  * 4. 潜在问题与改进建议：
- *    - 当前颜色数量较少；完整工作台阶段可扩展状态色和图表色。
+ *    - 如果后续加入图表，可在这里补充图表专用色，避免复用状态色造成语义混乱。
  *
  * 5. 修改指南：
  *    - 如果要新增设计 token，建议在 theme.extend 中添加并在组件中复用。
@@ -47,12 +48,39 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#14213d",
-        panel: "#f7f7f2",
-        line: "#d8d5cc",
-        teal: "#0f766e",
-        amber: "#b45309",
-        berry: "#9f1239",
+        ink: "#0F172A",
+        muted: "#64748B",
+        panel: "#F8FAFC",
+        line: "#E2E8F0",
+        brand: {
+          DEFAULT: "#1E3A8A",
+          deep: "#172554",
+          soft: "#DBEAFE",
+        },
+        accent: {
+          DEFAULT: "#0D9488",
+          soft: "#CCFBF1",
+        },
+        skyline: {
+          DEFAULT: "#0284C7",
+          soft: "#E0F2FE",
+        },
+        berry: "#BE123C",
+      },
+      fontFamily: {
+        sans: [
+          "Inter",
+          "Noto Sans SC",
+          "PingFang SC",
+          "Microsoft YaHei",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        soft: "0 18px 48px rgba(15, 23, 42, 0.08)",
+        card: "0 10px 30px rgba(15, 23, 42, 0.06)",
       },
     },
   },

@@ -8,19 +8,19 @@ import { AuthResponse, loginUser, registerUser } from "@/lib/api";
 /**
  * ======================== 代码解释 ========================
  * 1. 整体功能：
- *    渲染登录和注册表单，并在认证成功后把 token 交给父组件。
+ *    渲染独立登录/注册卡片，并在认证成功后把 token 与用户信息交给父组件。
  *
  * 2. 关键部分拆解：
- *    - mode：控制当前是登录还是注册。
+ *    - mode：控制当前是登录还是注册，并同步按钮激活态。
  *    - handleSubmit：调用 loginUser 或 registerUser。
- *    - onAuthenticated：把后端返回的认证结果传出。
+ *    - onAuthenticated：把后端返回的认证结果传出，进入个人工作台。
  *
  * 3. 重要概念与库：
  *    - Client Component：表单状态和提交交互需要在浏览器端执行。
  *    - AuthResponse：包含访问令牌和当前用户信息。
  *
  * 4. 潜在问题与改进建议：
- *    - 当前错误提示较通用；后续可展示后端 detail。
+ *    - 正常状态不展示技术说明；只有失败时给出可操作错误提示。
  *    - 当前没有忘记密码流程；正式产品可补充。
  *
  * 5. 修改指南：
@@ -70,18 +70,19 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
   }
 
   return (
-    <div className="app-glass rounded-2xl p-4">
-      <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Secure access</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">登录 AILib</h2>
+    <div className="app-card p-6 shadow-soft sm:p-7">
+      <div className="mb-6">
+        <p className="app-kicker">账号</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">登录 AILib</h2>
       </div>
 
-      <div className="grid rounded-xl border border-slate-200 bg-slate-100/70 p-1 sm:grid-cols-2">
+      <div className="grid rounded-2xl border border-slate-200 bg-slate-100 p-1 sm:grid-cols-2">
         <button
-          className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+          aria-pressed={mode === "login"}
+          className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition duration-200 ${
             mode === "login"
               ? "bg-white text-ink shadow-sm"
-              : "text-slate-500 hover:bg-white/60 hover:text-ink"
+              : "text-slate-500 hover:bg-white/70 hover:text-ink"
           }`}
           onClick={() => setMode("login")}
           type="button"
@@ -90,10 +91,11 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           登录
         </button>
         <button
-          className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+          aria-pressed={mode === "register"}
+          className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition duration-200 ${
             mode === "register"
               ? "bg-white text-ink shadow-sm"
-              : "text-slate-500 hover:bg-white/60 hover:text-ink"
+              : "text-slate-500 hover:bg-white/70 hover:text-ink"
           }`}
           onClick={() => setMode("register")}
           type="button"
@@ -103,12 +105,12 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
         </button>
       </div>
 
-      <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Email</span>
+          <span className="app-label">邮箱</span>
           <input
             autoComplete="email"
-            className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white/90 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
+            className="app-input mt-1"
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"
             required
@@ -117,20 +119,20 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
           />
         </label>
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Password</span>
+          <span className="app-label">密码</span>
           <input
             autoComplete={mode === "login" ? "current-password" : "new-password"}
-            className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white/90 px-3 text-ink outline-none transition placeholder:text-slate-400 focus:border-[#5E6AD2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(94,106,210,0.12)]"
+            className="app-input mt-1"
             minLength={8}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="At least 8 characters"
+            placeholder="至少 8 位字符"
             required
             type="password"
             value={password}
           />
         </label>
         <button
-          className="interactive-lift inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#111827] px-4 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="app-button-primary interactive-lift w-full"
           disabled={status === "submitting"}
           type="submit"
         >
@@ -140,8 +142,8 @@ export function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthRes
               ? "进入工作台"
               : "创建账号"}
         </button>
-        <p className={`min-h-5 text-sm ${status === "error" ? "text-berry" : "text-slate-500"}`}>
-          {status === "error" ? "认证失败，请检查邮箱和密码。" : ""}
+        <p className={`min-h-6 text-sm ${status === "error" ? "text-berry" : "text-slate-500"}`}>
+          {status === "error" ? "登录失败，请检查邮箱和密码。" : ""}
         </p>
       </form>
     </div>
